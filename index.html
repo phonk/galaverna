@@ -191,9 +191,12 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       this.padOut = g(1);
       /* the pad is held off the ground: its lowest octave is taken away, and a narrow bright band drifts slowly up and down through what is left */
       const lift = ac.createBiquadFilter(); lift.type = 'highpass'; lift.frequency.value = 420; lift.Q.value = 0.7;
-      const band = ac.createBiquadFilter(); band.type = 'peaking'; band.frequency.value = 1700; band.Q.value = 3.2; band.gain.value = 8;
+      const band = ac.createBiquadFilter(); band.type = 'peaking'; band.frequency.value = 1700; band.Q.value = 1.1; band.gain.value = 3.5;
       lfo(rnd(0.03, 0.07), 1100, band.detune); lfo(rnd(0.011, 0.02), 600, band.detune);
-      this.padBus.connect(pw); pw.connect(lift); lift.connect(band); band.connect(this.padOut); this.padOut.connect(this.duck);
+      /* and a note that sticks out is held down: with tones this pure, one voice swelling under the bright band can sing like feedback */
+      const hold = ac.createDynamicsCompressor(); hold.threshold.value = -30; hold.knee.value = 10; hold.ratio.value = 8; hold.attack.value = 0.05; hold.release.value = 0.6;
+      const makeup = g(1.25);
+      this.padBus.connect(pw); pw.connect(lift); lift.connect(band); band.connect(hold); hold.connect(makeup); makeup.connect(this.padOut); this.padOut.connect(this.duck);
 
       this.pingBus = g(1); { const d = g(0.5); this.pingBus.connect(d); d.connect(this.pre); }
 
@@ -215,7 +218,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       this.revSend = g(0.3); this.revIn = g(1); this.revIn.connect(this.rev);
       { const o = g(0.55); this.rev.connect(o); o.connect(this.pre); }
       this.chordBus.connect(this.revSend); this.revSend.connect(this.revIn);
-      [[this.delay, 0.35], [this.padOut, 0.95], [this.pingBus, 0.9]].forEach(([n, v]) => { const s = g(v); n.connect(s); s.connect(this.revIn); });
+      [[this.delay, 0.35], [this.padOut, 0.8], [this.pingBus, 0.9]].forEach(([n, v]) => { const s = g(v); n.connect(s); s.connect(this.revIn); });
 
       this.windOut = g(1); this.windOut.connect(this.pre); this.windOut.connect(this.revIn);
     }
@@ -250,7 +253,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       const lv = 0.36 * tr.padLevel / Math.sqrt(notes.length);
       /* every voice of the pad swells and fades on its own clock */
       for (const { n, mel, air } of notes) {
-        const k = air ? 3 : mel ? 1.5 : 1, a = air ? 0.7 : 1;
+        const k = air ? 3 : mel ? 1.5 : 1, a = air ? 0.4 : 1;
         const f = bq('lowpass', tr.padCut * k, 0.7), vg = g(lv * 0.5 * a);
         const per = rnd(18, 46), ts = t + rnd(0, per * 0.5);
         const lf = ac.createOscillator(), lg = g(lv * 0.5 * a); lf.frequency.value = 1 / per; lf.connect(lg); lg.connect(vg.gain); lf.start(ts);
