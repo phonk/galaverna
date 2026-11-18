@@ -29,4 +29,5 @@ A tide gauge. The blue line is the water: it stands where the tide is, and its s
 ## Notes
 
 - It keeps playing with the phone screen off.
+- After the first visit it opens with no network too, and stays in sync: all it needs is the clock.
 - English interface. Made by [Alessandro Bonino](https://alessandrobonino.com/) with Claude.

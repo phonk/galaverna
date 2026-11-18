@@ -824,6 +824,9 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(resize);
   resize();
 })();
+
+  /* keep a copy of the page on the device, so the station can be opened with no network */
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 <script data-goatcounter="https://phonk.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
