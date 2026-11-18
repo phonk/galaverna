@@ -355,8 +355,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
         /* the snare is struck metal, and one time in ten it is early or late */
         if (s === 4 || s === 12) {
           const ts = t + (chance(0.1) ? rnd(-0.3, 0.42) * sd : 0); this.snare(ts, tr, nx);
-          /* and now and then it does not stop: a rush of hits, faster than the grid, climbing */
-          if (chance(tr.roll)) { const n = pick([3, 4, 6, 8]), gap = sd / pick([2, 3, 4]); for (let i = 1; i <= n; i++) this.metal(ts + i * gap, tr.mSnare, nx * (0.45 + 0.55 * i / n), { pitch: 1 + i * 0.05, dec: 0.55 }); }
+          /* and now and then it does not stop: a rush of hits, faster than the grid, all on the same pitch */
+          if (chance(tr.roll)) { const n = pick([3, 4, 6, 8]), gap = sd / pick([2, 3, 4]); for (let i = 1; i <= n; i++) this.metal(ts + i * gap, tr.mSnare, nx * rnd(0.5, 0.8), { dec: 0.55 }); }
         }
         else if (tr.ghost.includes(s) && chance(0.5)) this.snare(t, tr, nx * 0.3);
       }
