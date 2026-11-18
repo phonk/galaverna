@@ -37,7 +37,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   color:var(--mute);pointer-events:none}
 
 .cap{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:-6px;text-align:center;min-height:4.4rem}
-#nowA{font-weight:300;font-size:1.9rem;letter-spacing:-.02em}
+#nowA{font-weight:300;font-size:1.6rem;letter-spacing:-.01em;line-height:1.15;text-wrap:balance;max-width:22ch}
 #nowB{color:var(--mute);font-size:.92rem;text-transform:lowercase}
 .hint{font-size:.88rem;color:var(--mute);margin:6px auto 0;max-width:42ch;text-align:center}
 
@@ -66,7 +66,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   </button>
 
   <div class="cap">
-    <span id="nowA" hidden>f min</span>
+    <span id="nowA" hidden>pale branches</span>
     <span id="nowB" hidden>track 1, bar 1 of 96 at 58 bpm</span>
     <p class="hint" id="hint">Always on air. Tides rise from still, cold ambient into 2-step and fall back. Everything is generated in real time. Everything is in sync worldwide, even when offline.</p>
   </div>
@@ -99,6 +99,9 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   /* everything is counted from the root of a minor key, in semitones */
   const CHORDS = [[0, 3, 7, 10], [0, 3, 7, 10, 14], [0, 7, 10, 15], [0, 5, 7, 10], [0, 3, 10, 14], [0, 7, 15, 17], [0, 3, 7, 14]];
   const VOICINGS = [[0, 7, 15, 22], [0, 7, 10, 15], [-12, 0, 7, 15], [0, 7, 15, 19]];
+  /* a track has no key on its sleeve, only a name */
+  const NAME_A = ['pale', 'hollow', 'black', 'still', 'thin', 'blind', 'salt', 'glass', 'low', 'slow', 'buried', 'unlit', 'white', 'frozen', 'distant', 'last', 'empty', 'silent', 'grey', 'lost', 'bare', 'faint', 'cold', 'sunken'];
+  const NAME_B = ['branches', 'breath', 'window', 'field', 'hour', 'rooms', 'wire', 'thaw', 'lake', 'static', 'stairwell', 'frost', 'signal', 'ash', 'harbour', 'lights', 'weather', 'snow', 'orchard', 'ground', 'antenna', 'pylons', 'reservoir', 'morning'];
   const MELS = [[14, 15], [14, 15, 14, 12], [10, 8], [19, 20, 19, 17], [14, 14, 15, 12]];
   const FLOOR = [[0, 0, -4, -4], [0, 0, 0, -4, 0, 0, -2, -2], [0, -4, -7, -2], [0, 0, -7, -7], [0, 0, 0, 0], [0, 0, -4, -2]];
   const BASS_PATTERNS = [[2, 6, 10, 14], [3, 6, 11, 14], [2, 7, 10], [6, 14], [2, 3, 10, 11], [3, 10], [2, 6, 11]];
@@ -184,8 +187,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       lfo(rnd(0.3, 0.5), 0.0022, pw.delayTime); lfo(rnd(0.06, 0.11), 0.005, pw.delayTime); lfo(rnd(5.5, 7.5), 0.00005, pw.delayTime);
       this.padOut = g(1);
       /* the pad is held off the ground: its lowest octave is taken away, and a narrow bright band drifts slowly up and down through what is left */
-      const lift = ac.createBiquadFilter(); lift.type = 'highpass'; lift.frequency.value = 250; lift.Q.value = 0.7;
-      const band = ac.createBiquadFilter(); band.type = 'peaking'; band.frequency.value = 1000; band.Q.value = 2.4; band.gain.value = 8;
+      const lift = ac.createBiquadFilter(); lift.type = 'highpass'; lift.frequency.value = 300; lift.Q.value = 0.7;
+      const band = ac.createBiquadFilter(); band.type = 'peaking'; band.frequency.value = 1000; band.Q.value = 3.2; band.gain.value = 8;
       lfo(rnd(0.03, 0.07), 1100, band.detune); lfo(rnd(0.011, 0.02), 600, band.detune);
       this.padBus.connect(pw); pw.connect(lift); lift.connect(band); band.connect(this.padOut); this.padOut.connect(this.duck);
 
@@ -209,7 +212,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       this.revSend = g(0.3); this.revIn = g(1); this.revIn.connect(this.rev);
       { const o = g(0.55); this.rev.connect(o); o.connect(this.pre); }
       this.chordBus.connect(this.revSend); this.revSend.connect(this.revIn);
-      [[this.delay, 0.35], [this.padOut, 0.45], [this.pingBus, 0.9]].forEach(([n, v]) => { const s = g(v); n.connect(s); s.connect(this.revIn); });
+      [[this.delay, 0.35], [this.padOut, 0.75], [this.pingBus, 0.9]].forEach(([n, v]) => { const s = g(v); n.connect(s); s.connect(this.revIn); });
 
       this.windOut = g(1); this.windOut.connect(this.pre); this.windOut.connect(this.revIn);
     }
@@ -240,20 +243,23 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     startVoices(t) {
       const tr = this.track, g = this.g, bq = this.bq;
       this.voices = []; this.live = [];
-      const notes = tr.voicing.map(n => ({ n, mel: false })).concat([{ n: tr.mel[0], mel: true }]);
+      const notes = tr.voicing.map(n => ({ n, mel: false })).concat([{ n: tr.mel[0], mel: true }], tr.air.map(n => ({ n, mel: false, air: true })));
       const lv = 0.2 * tr.padLevel / Math.sqrt(notes.length);
       /* every voice of the pad swells and fades on its own clock */
-      for (const { n, mel } of notes) {
-        const f = bq('lowpass', tr.padCut * (mel ? 1.5 : 1), 0.7), vg = g(lv * 0.55);
+      for (const { n, mel, air } of notes) {
+        const k = air ? 3 : mel ? 1.5 : 1, a = air ? 0.45 : 1;
+        const f = bq('lowpass', tr.padCut * k, 0.7), vg = g(lv * 0.5 * a);
         const per = rnd(18, 46), ts = t + rnd(0, per * 0.5);
-        const lf = ac.createOscillator(), lg = g(lv * 0.45); lf.frequency.value = 1 / per; lf.connect(lg); lg.connect(vg.gain); lf.start(ts);
+        const lf = ac.createOscillator(), lg = g(lv * 0.5 * a); lf.frequency.value = 1 / per; lf.connect(lg); lg.connect(vg.gain); lf.start(ts);
+        /* the pitch of every voice wanders on its own, a few cents sharp, a few flat, never where the others are */
+        const wf = ac.createOscillator(), wg = g(air ? rnd(14, 26) : rnd(7, 15)); wf.frequency.value = rnd(0.03, 0.11); wf.connect(wg); wf.start(t);
         const oscs = [-1, 1].map(s => {
-          const o = ac.createOscillator(); o.type = mel && s > 0 ? 'triangle' : 'sawtooth';
-          o.frequency.value = mtof(tr.base + n); o.detune.value = s * rnd(4, 9); o.connect(f); o.start(t); return o;
+          const o = ac.createOscillator(); o.type = air ? 'sine' : mel && s > 0 ? 'triangle' : 'sawtooth';
+          o.frequency.value = mtof(tr.base + n); o.detune.value = s * rnd(7, 16); wg.connect(o.detune); o.connect(f); o.start(t); return o;
         });
         f.connect(vg); vg.connect(this.padBus);
-        this.voices.push({ n, mel, per, ts, f, oscs });
-        this.live.push(lf, ...oscs);
+        this.voices.push({ n, mel, k, per, ts, f, oscs });
+        this.live.push(lf, wf, ...oscs);
       }
       /* the floor: a low sine that is always there, and that the pulse pushes */
       this.sub = ac.createOscillator(); this.sub2 = ac.createOscillator();
@@ -313,7 +319,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
           if (v) { v.n = mn; v.oscs.forEach(o => o.frequency.setTargetAtTime(mtof(tr.base + mn), t, 0.35)); }
         }
         const drift = Math.pow(2, 0.5 * Math.sin(tt / tr.p2) + 0.25 * Math.sin(tt / tr.p1 + 1));
-        this.voices.forEach(v => v.f.frequency.setTargetAtTime(tr.padCut * (v.mel ? 1.5 : 1) * drift, t, 1.5));
+        this.voices.forEach(v => v.f.frequency.setTargetAtTime(tr.padCut * v.k * drift, t, 1.5));
         this.padOut.gain.setTargetAtTime(lerp(1, 0.6, ss(0.3, 0.9, x)), t, 2);
         this.windOut.gain.setTargetAtTime(1 - 0.5 * ss(0.5, 0.9, x), t, 2);
         this.subBase = 0.1 * (1 - 0.85 * ss(0.4, 0.8, x)); this.subGain.gain.setTargetAtTime(this.subBase, t + 0.3, 1);
@@ -490,8 +496,12 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       ghost: pick([[7], [15], [9], [7, 15], [14], []]), snF: rnd(1700, 3400), snDec: rnd(0.08, 0.16), snTone: rnd(170, 240), snRev: rnd(0.2, 0.5),
       hatMask: mask, openAt: pick([6, 14, 14, -1]), hatLevel: rnd(0.05, 0.085), hatDecay: rnd(0.018, 0.035), hatTone: rnd(7500, 10500),
       stab: [s1, s2], vowels: [pick(VOW), pick(VOW)], chopDec: rnd(0.2, 0.55), chopBend: rnd(1, 3),
-      voicing: pick([[0, 7, 14, 22], [0, 7, 15, 22], [0, 10, 14, 19], [-12, 7, 14, 15], [0, 7, 10, 14]]),
-      padCut: rnd(600, 1500), revSend: rnd(0.4, 0.6), delaySend: rnd(0.25, 0.5), delaySteps: pick([3, 3, 6]), fb: rnd(0.35, 0.5),
+      /* no root anywhere in the pad: fifths, ninths, the minor third and the flat sixth rubbing against their neighbours, now and then a major seventh */
+      voicing: pick([[7, 14, 15, 22], [7, 8, 14, 15], [2, 7, 15, 20], [3, 14, 19, 23], [10, 14, 15, 19], [7, 8, 15, 26], [2, 3, 10, 19]]),
+      mel: pick([[14, 15], [20, 19], [14, 15, 14, 11], [26, 27], [23, 22], [20, 19, 15, 14]]), melBars: pick([8, 16, 16]),
+      air: pick([[31], [26], [27, 31], [32], [35]]),
+      name: pick(NAME_A) + ' ' + pick(NAME_B),
+      padCut: rnd(500, 1100), revSend: rnd(0.4, 0.6), delaySend: rnd(0.25, 0.5), delaySteps: pick([3, 3, 6]), fb: rnd(0.35, 0.5),
       drive: rnd(1.2, 2.2), warble: rnd(0.5, 1.2),
       kickTune: rnd(48, 56), kickDecay: rnd(0.18, 0.28), pump: rnd(0.05, 0.08), clap: false,
       ping: rnd(0.05, 0.14), wind: rnd(0.02, 0.05), windF: rnd(900, 2600)
@@ -517,7 +527,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     if (rel === curL - curT / 2) c.beginOut(bar, t, curT / 2, barDur);
     for (const d of decks) { const rb = bar - d.startBar; if (d.track && rb > 0 && rb % 16 === 0) mutate(d.track.stab[chance(0.5) ? 0 : 1]); }
     if (dry) return;
-    const key = KEYS[c.track.root] + ' min' + (other.track ? ' → ' + KEYS[other.track.root] + ' min' : '');
+    const key = c.track.name + (other.track ? ' → ' + other.track.name : '');
     events.push({ t, kind: 'bar', bpm: bpmNow, key, track: trackNo, rel, L: curL, dur: barDur, x });
   }
   /* one sixteenth. what happens bar by bar is always worked out; the sound of the step only when someone is listening */
@@ -542,7 +552,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     dry = true; while (nextTime < now + 0.12) advance(); dry = false;
     const sd = 60 / bpmNow / 4, bar = Math.floor((step - 1) / 16), c = decks[cur], other = decks[1 - cur];
     decks.forEach(d => { d.sound(now); d.settle(bar, now, sd); });
-    if (c.track) events.push({ t: now, kind: 'bar', bpm: bpmNow, key: KEYS[c.track.root] + ' min' + (other.track ? ' → ' + KEYS[other.track.root] + ' min' : ''), track: trackNo, rel: bar - c.startBar, L: curL, dur: sd * 16, x });
+    if (c.track) events.push({ t: now, kind: 'bar', bpm: bpmNow, key: c.track.name + (other.track ? ' → ' + other.track.name : ''), track: trackNo, rel: bar - c.startBar, L: curL, dur: sd * 16, x });
   }
   function tick() {
     if (!playing || !ac || ac.state !== 'running') return;
