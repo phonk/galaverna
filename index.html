@@ -165,7 +165,9 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       this.pre.connect(this.lp); this.lp.connect(this.out); this.out.connect(mix);
       this.duck = g(1); this.duck.connect(this.pre);
       this.drum = g(1); this.drum.connect(this.pre);
-      this.front = g(1.2); this.front.connect(this.pre);   /* the metal stands in front of everything */
+      /* the drums are driven hard into a clipper of their own: that is what makes them loud, short and ugly, and puts them in front */
+      this.front = g(3.2); const crush = ac.createWaveShaper(); crush.curve = tanhCurve(4.5, 0.62); crush.oversample = '2x';
+      this.front.connect(crush); crush.connect(this.pre);
       this.subBus = g(0.5); this.subBus.connect(this.pre);
 
       /* stabs: overdrive, tape warble, phaser */
@@ -348,7 +350,11 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       if (low && bx > 0.02) { const n = tr.bassLine[b2]; if (n) this.bass(t, sd, tr, bx, n.iv, n.len); }
       if (low && nx > 0.02) {
         /* the snare is struck metal, and one time in ten it is early or late */
-        if (s === 4 || s === 12) this.snare(t + (chance(0.1) ? rnd(-0.3, 0.42) * sd : 0), tr, nx);
+        if (s === 4 || s === 12) {
+          const ts = t + (chance(0.1) ? rnd(-0.3, 0.42) * sd : 0); this.snare(ts, tr, nx);
+          /* and now and then it does not stop: a rush of hits, faster than the grid, climbing */
+          if (chance(tr.roll)) { const n = pick([3, 4, 6, 8]), gap = sd / pick([2, 3, 4]); for (let i = 1; i <= n; i++) this.metal(ts + i * gap, tr.mSnare, nx * (0.45 + 0.55 * i / n), { pitch: 1 + i * 0.05, dec: 0.55 }); }
+        }
         else if (tr.ghost.includes(s) && chance(0.5)) this.snare(t, tr, nx * 0.3);
       }
       if (hx > 0.02 && !tr.hatsOff.has(Math.floor(rb / 8))) {
@@ -367,34 +373,35 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       if (s % 4 === 0 && chance(tr.ping * (0.45 + 0.55 * ax))) this.ping(t, tr);
       if (tr.tick && chance(tr.tick * 0.5)) this.tick(t);
     }
-    /* struck metal: a handful of partials that are not in tune with each other, the way a bar or a sheet of steel rings, each
-       dying at its own rate; under them one tone bent by another, which is where the clang comes from; on top, the click of the strike */
+    /* a hit, not a note. a burst of noise, part of it raw and part forced through a few narrow resonances that are not in tune with
+       each other, which is what makes it sound like sheet metal and not like a drum skin; a short clang, one tone bent hard by
+       another; for the hats a cluster of square waves. everything is over in a few hundredths of a second, and goes into the clipper */
     metal(t, m, lv, opt = {}) {
-      const dec = m.dec * (opt.dec || 1), f0 = m.f * (opt.pitch || 1), out = ac.createGain();
-      let norm = 0; m.parts.forEach((_, i) => { norm += 1 / (1 + i * 0.35); });
-      out.gain.value = m.level * lv / (0.55 * norm + 0.5);
-      m.parts.forEach((r, i) => {
-        const o = ac.createOscillator(), gn = ac.createGain(), d = dec / (1 + i * m.damp);
-        o.type = m.square ? 'square' : 'sine'; o.frequency.value = f0 * r;
-        gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(1 / (1 + i * 0.35), t + 0.0008); gn.gain.exponentialRampToValueAtTime(0.0004, t + d);
-        o.connect(gn); gn.connect(out); o.start(t); o.stop(t + d + 0.03);
-      });
-      const car = ac.createOscillator(), mod = ac.createOscillator(), idx = ac.createGain(), cg = ac.createGain(), fd = dec * 0.6;
-      car.frequency.value = f0 * m.fmC; mod.frequency.value = f0 * m.fmC * m.fmR;
-      idx.gain.setValueAtTime(f0 * m.fmC * m.fmI, t); idx.gain.exponentialRampToValueAtTime(f0 * 0.05, t + fd);
-      cg.gain.setValueAtTime(0, t); cg.gain.linearRampToValueAtTime(0.9, t + 0.0008); cg.gain.exponentialRampToValueAtTime(0.0004, t + fd);
-      mod.connect(idx); idx.connect(car.frequency); car.connect(cg); cg.connect(out);
-      car.start(t); mod.start(t); car.stop(t + fd + 0.03); mod.stop(t + fd + 0.03);
-      const src = ac.createBufferSource(); src.buffer = noiseBuf;
-      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = m.clickF;
-      const kg = ac.createGain(); kg.gain.setValueAtTime(m.click, t); kg.gain.exponentialRampToValueAtTime(0.0004, t + 0.014);
-      src.connect(hp); hp.connect(kg); kg.connect(out); src.start(t, Math.random() * 1.5, 0.05);
+      const p = opt.pitch || 1, dk = opt.dec || 1, out = ac.createGain(); out.gain.value = m.level * lv;
+      const nd = m.nDec * dk, src = ac.createBufferSource(), ng = ac.createGain(); src.buffer = noiseBuf;
+      ng.gain.setValueAtTime(1, t); ng.gain.exponentialRampToValueAtTime(0.0005, t + nd);
+      src.connect(ng); src.start(t, Math.random() * 1.5, nd + 0.03);
+      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = m.hpN; const rg = ac.createGain(); rg.gain.value = m.raw;
+      ng.connect(hp); hp.connect(rg); rg.connect(out);
+      for (const f of m.bands) { const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * p; bp.Q.value = m.q; const bg = ac.createGain(); bg.gain.value = m.res; ng.connect(bp); bp.connect(bg); bg.connect(out); }
+      if (m.fmLv) {
+        const car = ac.createOscillator(), mod = ac.createOscillator(), idx = ac.createGain(), cg = ac.createGain(), fd = m.fmDec * dk, f0 = m.fmF * p;
+        car.frequency.setValueAtTime(f0 * 1.6, t); car.frequency.exponentialRampToValueAtTime(f0, t + fd * 0.5); mod.frequency.value = f0 * m.fmR;
+        idx.gain.setValueAtTime(f0 * m.fmI, t); idx.gain.exponentialRampToValueAtTime(f0 * 0.1, t + fd);
+        cg.gain.setValueAtTime(m.fmLv, t); cg.gain.exponentialRampToValueAtTime(0.0005, t + fd);
+        mod.connect(idx); idx.connect(car.frequency); car.connect(cg); cg.connect(out);
+        car.start(t); mod.start(t); car.stop(t + fd + 0.02); mod.stop(t + fd + 0.02);
+      }
+      if (m.sq) for (const f of m.sq) {
+        const o = ac.createOscillator(), sg = ac.createGain(); o.type = 'square'; o.frequency.value = f * p;
+        sg.gain.setValueAtTime(m.sqLv, t); sg.gain.exponentialRampToValueAtTime(0.0005, t + nd);
+        o.connect(sg); sg.connect(hp); o.start(t); o.stop(t + nd + 0.02);
+      }
       let node = out;
-      if (m.hp) { const f = ac.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = m.hp; f.Q.value = 0.7; node.connect(f); node = f; }
-      if (m.pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = m.pan; node.connect(p); node = p; }
+      if (m.pan && ac.createStereoPanner) { const pn = ac.createStereoPanner(); pn.pan.value = m.pan; node.connect(pn); node = pn; }
       node.connect(this.front);
-      const rv = ac.createGain(); rv.gain.value = Math.min(1.2, m.rev * (opt.far || 1)); node.connect(rv); rv.connect(this.revIn);
-      say('metal', m.f | 0, lv);
+      const rv = ac.createGain(); rv.gain.value = Math.min(1, m.rev * (opt.far || 1)); node.connect(rv); rv.connect(this.revIn);
+      say('metal', m.fmF | 0, lv);
     }
     snare(t, tr, lv) {
       this.metal(t, tr.mSnare, lv);
@@ -413,7 +420,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       o.frequency.setValueAtTime(tr.kickTune * 3.2, t); o.frequency.exponentialRampToValueAtTime(tr.kickTune, t + 0.09);
       gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(0.85 * lv, t + 0.003); gn.gain.exponentialRampToValueAtTime(0.001, t + tr.kickDecay);
       o.connect(gn); gn.connect(this.drum); o.start(t); o.stop(t + tr.kickDecay + 0.05);
-      this.metal(t, tr.mKick, lv);   /* the knock of the beater on steel */
+      const grit = ac.createGain(); grit.gain.value = 0.3; gn.connect(grit); grit.connect(this.front);   /* the kick is clipped too, over its clean sub */
+      this.metal(t, tr.mKick, lv);
       this.duck.gain.setTargetAtTime(1 - 0.7 * lv, t, 0.004); this.duck.gain.setTargetAtTime(1, t + 0.045, tr.pump);
       if (bed) { bed.gain.setTargetAtTime(1 - 0.6 * lv, t, 0.004); bed.gain.setTargetAtTime(1, t + 0.045, 0.13); }
       events.push({ t, kind: 'kick', lv }); say('kick', lv);
@@ -525,10 +533,10 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     const mask = new Array(16).fill(0).map((_, i) => i % 4 === 2 ? rnd(0.8, 1) : i % 2 === 0 ? rnd(0.1, 0.45) : (chance(0.45) ? rnd(0.3, 0.8) : 0));
     const s1 = new Array(16).fill(0); for (let i = pick([1, 1, 2, 2, 3]); i > 0; i--) s1[weightedStep()] = rnd(0.6, 1);
     const s2 = s1.slice(); if (chance(0.6)) mutate(s2);
-    const BAR = [1, 2.76, 5.4, 8.93], PLATE = [1, 1.59, 2.14, 2.65, 3.16, 3.5], BELL = [1, 1.48, 2.37, 3.11, 4.26], kt = rnd(48, 56);
+    const kt = rnd(48, 56), hf = rnd(2400, 3800), FR = [1.41, 2.33, 2.76, 3.14];
     const stray = () => chance(0.5)
-      ? { f: rnd(700, 1600), parts: pick([BAR, BELL]), dec: rnd(0.2, 0.6), damp: rnd(0.3, 0.7), level: 0.42, fmC: 1.9, fmR: pick([1.41, 2.33, 3.14]), fmI: rnd(1.5, 3.5), click: 0.6, clickF: 5000, rev: rnd(0.2, 0.4), pan: rnd(-0.7, 0.7) }
-      : { f: rnd(170, 340), parts: PLATE, dec: rnd(0.22, 0.5), damp: rnd(0.25, 0.5), level: 0.46, fmC: 2.3, fmR: pick([1.41, 0.71, 2.76]), fmI: rnd(3, 6), click: 0.7, clickF: 3500, rev: rnd(0.2, 0.4), pan: rnd(-0.7, 0.7) };
+      ? { bands: [rnd(500, 900), rnd(1300, 2400), rnd(3000, 5200)], q: rnd(18, 40), nDec: rnd(0.04, 0.1), hpN: 400, raw: 0.4, res: 5, fmF: rnd(300, 700), fmR: pick(FR), fmI: rnd(5, 10), fmDec: rnd(0.03, 0.07), fmLv: 0.8, level: 0.8, rev: rnd(0.12, 0.3), pan: rnd(-0.7, 0.7) }
+      : { bands: [rnd(250, 500), rnd(1800, 3000)], q: rnd(4, 10), nDec: rnd(0.05, 0.12), hpN: 200, raw: 1, res: 2, fmF: rnd(90, 160), fmR: pick(FR), fmI: rnd(8, 14), fmDec: rnd(0.04, 0.07), fmLv: 1, level: 0.9, rev: rnd(0.12, 0.3), pan: rnd(-0.7, 0.7) };
     const VOW = [[700, 1200], [400, 2000], [300, 2400], [500, 900], [350, 750], [600, 1700]];
     Object.assign(tr, {
       swing: rnd(0.22, 0.36), kickSteps: [k1, k2], bassLine: line, bassCut: rnd(120, 220),
@@ -542,10 +550,11 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       name: pick(NAME_A) + ' ' + pick(NAME_B),
       padCut: rnd(900, 1900), revSend: rnd(0.4, 0.6), delaySend: rnd(0.25, 0.5), delaySteps: pick([3, 3, 6]), fb: rnd(0.35, 0.5),
       drive: rnd(1.2, 2.2), warble: rnd(0.5, 1.2),
-      kickTune: kt, kickDecay: rnd(0.18, 0.28), pump: rnd(0.05, 0.08), clap: false,
-      mSnare: { f: rnd(360, 640), parts: pick([BAR, PLATE, BELL]), dec: rnd(0.14, 0.3), damp: rnd(0.35, 0.8), level: 0.62, fmC: 1.6, fmR: pick([1.41, 2.33, 3.14, 0.71]), fmI: rnd(2, 4.5), click: 0.8, clickF: 4500, rev: rnd(0.12, 0.28), pan: 0 },
-      mHat: { f: rnd(2400, 3800), parts: [1, 1.34, 1.72, 2.19], square: true, dec: rnd(0.028, 0.05), damp: 0.15, level: 0.2, fmC: 2.66, fmR: 1.47, fmI: 3, click: 0.35, clickF: 8000, hp: 6000, rev: 0.04, pan: rnd(-0.25, 0.25) },
-      mKick: { f: kt * rnd(3.8, 5), parts: [1, 2.76, 5.4], dec: rnd(0.05, 0.09), damp: 0.5, level: 0.3, fmC: 1, fmR: 2.33, fmI: rnd(1.5, 3), click: 0.7, clickF: 2500, rev: 0.03, pan: 0 },
+      kickTune: kt, kickDecay: rnd(0.16, 0.24), pump: rnd(0.05, 0.08), clap: false,
+      mSnare: { bands: [rnd(900, 1500), rnd(2100, 3200), rnd(4200, 6500)], q: rnd(8, 20), nDec: rnd(0.07, 0.13), hpN: 700, raw: 0.9, res: 3, fmF: rnd(180, 260), fmR: pick(FR), fmI: rnd(4, 9), fmDec: rnd(0.04, 0.08), fmLv: 0.9, level: 0.95, rev: rnd(0.06, 0.16), pan: 0 },
+      mHat: { bands: [rnd(6000, 8000), rnd(9000, 12000)], q: 6, nDec: rnd(0.012, 0.028), hpN: 6000, raw: 0.8, res: 2, sq: [hf, hf * 1.34, hf * 1.72, hf * 2.19], sqLv: 0.35, fmLv: 0, fmF: 0, level: 0.33, rev: 0.02, pan: rnd(-0.25, 0.25) },
+      mKick: { bands: [rnd(1500, 2600)], q: 5, nDec: 0.012, hpN: 1500, raw: 0.7, res: 1.5, fmF: kt * 2, fmR: 2.33, fmI: rnd(3, 6), fmDec: 0.03, fmLv: 0.8, level: 0.5, rev: 0.02, pan: 0 },
+      roll: rnd(0.04, 0.1),
       mStray: [stray(), stray(), stray()], stray: rnd(0.02, 0.05),
       ping: rnd(0.05, 0.14), wind: rnd(0.02, 0.05), windF: rnd(900, 2600)
     });
