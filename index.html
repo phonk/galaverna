@@ -165,6 +165,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       this.pre.connect(this.lp); this.lp.connect(this.out); this.out.connect(mix);
       this.duck = g(1); this.duck.connect(this.pre);
       this.drum = g(1); this.drum.connect(this.pre);
+      this.front = g(1.2); this.front.connect(this.pre);   /* the metal stands in front of everything */
       this.subBus = g(0.5); this.subBus.connect(this.pre);
 
       /* stabs: overdrive, tape warble, phaser */
@@ -320,7 +321,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
         }
         const drift = Math.pow(2, 0.5 * Math.sin(tt / tr.p2) + 0.25 * Math.sin(tt / tr.p1 + 1));
         this.voices.forEach(v => v.f.frequency.setTargetAtTime(tr.padCut * v.k * drift, t, 1.5));
-        this.padOut.gain.setTargetAtTime(lerp(1, 0.6, ss(0.3, 0.9, x)), t, 2);
+        this.padOut.gain.setTargetAtTime(lerp(1, 0.48, ss(0.3, 0.9, x)), t, 2);
         this.windOut.gain.setTargetAtTime(1 - 0.5 * ss(0.5, 0.9, x), t, 2);
         this.subBase = 0.1 * (1 - 0.85 * ss(0.4, 0.8, x)); this.subGain.gain.setTargetAtTime(this.subBase, t + 0.3, 1);
         this.subBus.gain.setTargetAtTime(0.5 * tr.subLevel, t, 1);
@@ -343,28 +344,58 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       if (low && kx > 0.02 && tr.kickSteps[rb % 2].includes(s)) this.kick(t, tr, kx * (s === 0 ? 1 : 0.85));
       if (low && bx > 0.02) { const n = tr.bassLine[b2]; if (n) this.bass(t, sd, tr, bx, n.iv, n.len); }
       if (low && nx > 0.02) {
-        if (s === 4 || s === 12) this.snare(t, tr, nx);
-        else if (tr.ghost.includes(s) && chance(0.5)) this.snare(t, tr, nx * 0.28);
+        /* the snare is struck metal, and one time in ten it is early or late */
+        if (s === 4 || s === 12) this.snare(t + (chance(0.1) ? rnd(-0.3, 0.42) * sd : 0), tr, nx);
+        else if (tr.ghost.includes(s) && chance(0.5)) this.snare(t, tr, nx * 0.3);
       }
       if (hx > 0.02 && !tr.hatsOff.has(Math.floor(rb / 8))) {
-        if (s === tr.openAt && x > 0.55) this.hat(t, tr.hatLevel * hx, tr.hatDecay * 4, tr.hatTone * 0.9);
-        else if (chance(tr.hatMask[s] * (0.5 + 0.5 * hx))) this.hat(t, tr.hatLevel * hx * (s % 2 ? rnd(0.3, 0.6) : rnd(0.6, 1)), tr.hatDecay, tr.hatTone);
+        if (s === tr.openAt && x > 0.55) this.metal(t, tr.mHat, hx, { dec: 5 });
+        else if (chance(tr.hatMask[s] * (0.5 + 0.5 * hx))) this.metal(t, tr.mHat, hx * (s % 2 ? rnd(0.3, 0.6) : rnd(0.6, 1)));
+      }
+      /* now and then something lands where no grid would put it: one stray hit, or a thing dropped that bounces to rest.
+         at low tide it is far off in the room, at high tide it is in your face */
+      const sx = ss(0.18, 0.55, x);
+      if (sx > 0.02 && chance(tr.stray * (0.4 + 0.6 * sx))) {
+        const m = pick(tr.mStray), t1 = at + (chance(0.5) ? rnd(0.14, 0.4) : rnd(0.6, 0.86)) * sd, far = lerp(3, 1, sx), lv = rnd(0.45, 1) * lerp(0.45, 1, sx);
+        if (chance(0.3)) { let gap = rnd(0.55, 0.95) * sd, tt = t1, l = lv; for (let i = pick([3, 4, 5]); i > 0; i--) { this.metal(tt, m, l, { far }); tt += gap; gap *= rnd(0.55, 0.72); l *= 0.7; } }
+        else this.metal(t1, m, lv, { far, pitch: pick([1, 1, 1, 1.5, 0.75]) });
+        events.push({ t: t1, kind: 'ping', h: 0.5 });
       }
       if (s % 4 === 0 && chance(tr.ping * (0.45 + 0.55 * ax))) this.ping(t, tr);
       if (tr.tick && chance(tr.tick * 0.5)) this.tick(t);
     }
-    snare(t, tr, lv) {
-      const gn = ac.createGain(), dec = tr.snDec;
-      gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(0.5 * lv, t + 0.001); gn.gain.exponentialRampToValueAtTime(0.0005, t + dec);
+    /* struck metal: a handful of partials that are not in tune with each other, the way a bar or a sheet of steel rings, each
+       dying at its own rate; under them one tone bent by another, which is where the clang comes from; on top, the click of the strike */
+    metal(t, m, lv, opt = {}) {
+      const dec = m.dec * (opt.dec || 1), f0 = m.f * (opt.pitch || 1), out = ac.createGain();
+      let norm = 0; m.parts.forEach((_, i) => { norm += 1 / (1 + i * 0.35); });
+      out.gain.value = m.level * lv / (0.55 * norm + 0.5);
+      m.parts.forEach((r, i) => {
+        const o = ac.createOscillator(), gn = ac.createGain(), d = dec / (1 + i * m.damp);
+        o.type = m.square ? 'square' : 'sine'; o.frequency.value = f0 * r;
+        gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(1 / (1 + i * 0.35), t + 0.0008); gn.gain.exponentialRampToValueAtTime(0.0004, t + d);
+        o.connect(gn); gn.connect(out); o.start(t); o.stop(t + d + 0.03);
+      });
+      const car = ac.createOscillator(), mod = ac.createOscillator(), idx = ac.createGain(), cg = ac.createGain(), fd = dec * 0.6;
+      car.frequency.value = f0 * m.fmC; mod.frequency.value = f0 * m.fmC * m.fmR;
+      idx.gain.setValueAtTime(f0 * m.fmC * m.fmI, t); idx.gain.exponentialRampToValueAtTime(f0 * 0.05, t + fd);
+      cg.gain.setValueAtTime(0, t); cg.gain.linearRampToValueAtTime(0.9, t + 0.0008); cg.gain.exponentialRampToValueAtTime(0.0004, t + fd);
+      mod.connect(idx); idx.connect(car.frequency); car.connect(cg); cg.connect(out);
+      car.start(t); mod.start(t); car.stop(t + fd + 0.03); mod.stop(t + fd + 0.03);
       const src = ac.createBufferSource(); src.buffer = noiseBuf;
-      const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = tr.snF; bp.Q.value = 0.9;
-      src.connect(bp); bp.connect(gn); src.start(t, Math.random() * 1.5, dec + 0.05);
-      const o = ac.createOscillator(), og = ac.createGain(); o.type = 'triangle';
-      o.frequency.setValueAtTime(tr.snTone * 1.5, t); o.frequency.exponentialRampToValueAtTime(tr.snTone, t + 0.03);
-      og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-      o.connect(og); og.connect(gn); o.start(t); o.stop(t + 0.1);
-      gn.connect(this.drum);
-      const sn = ac.createGain(); sn.gain.value = tr.snRev; gn.connect(sn); sn.connect(this.revIn);
+      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = m.clickF;
+      const kg = ac.createGain(); kg.gain.setValueAtTime(m.click, t); kg.gain.exponentialRampToValueAtTime(0.0004, t + 0.014);
+      src.connect(hp); hp.connect(kg); kg.connect(out); src.start(t, Math.random() * 1.5, 0.05);
+      let node = out;
+      if (m.hp) { const f = ac.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = m.hp; f.Q.value = 0.7; node.connect(f); node = f; }
+      if (m.pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = m.pan; node.connect(p); node = p; }
+      node.connect(this.front);
+      const rv = ac.createGain(); rv.gain.value = Math.min(1.2, m.rev * (opt.far || 1)); node.connect(rv); rv.connect(this.revIn);
+      say('metal', m.f | 0, lv);
+    }
+    snare(t, tr, lv) {
+      this.metal(t, tr.mSnare, lv);
+      this.duck.gain.setTargetAtTime(1 - 0.3 * lv, t, 0.003); this.duck.gain.setTargetAtTime(1, t + 0.04, 0.09);
       say('snare', lv);
     }
     pulse(t, vel, tr) {
@@ -379,6 +410,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       o.frequency.setValueAtTime(tr.kickTune * 3.2, t); o.frequency.exponentialRampToValueAtTime(tr.kickTune, t + 0.09);
       gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(0.85 * lv, t + 0.003); gn.gain.exponentialRampToValueAtTime(0.001, t + tr.kickDecay);
       o.connect(gn); gn.connect(this.drum); o.start(t); o.stop(t + tr.kickDecay + 0.05);
+      this.metal(t, tr.mKick, lv);   /* the knock of the beater on steel */
       this.duck.gain.setTargetAtTime(1 - 0.7 * lv, t, 0.004); this.duck.gain.setTargetAtTime(1, t + 0.045, tr.pump);
       if (bed) { bed.gain.setTargetAtTime(1 - 0.6 * lv, t, 0.004); bed.gain.setTargetAtTime(1, t + 0.045, 0.13); }
       events.push({ t, kind: 'kick', lv }); say('kick', lv);
@@ -490,6 +522,10 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     const mask = new Array(16).fill(0).map((_, i) => i % 4 === 2 ? rnd(0.8, 1) : i % 2 === 0 ? rnd(0.1, 0.45) : (chance(0.45) ? rnd(0.3, 0.8) : 0));
     const s1 = new Array(16).fill(0); for (let i = pick([1, 1, 2, 2, 3]); i > 0; i--) s1[weightedStep()] = rnd(0.6, 1);
     const s2 = s1.slice(); if (chance(0.6)) mutate(s2);
+    const BAR = [1, 2.76, 5.4, 8.93], PLATE = [1, 1.59, 2.14, 2.65, 3.16, 3.5], BELL = [1, 1.48, 2.37, 3.11, 4.26], kt = rnd(48, 56);
+    const stray = () => chance(0.5)
+      ? { f: rnd(700, 1600), parts: pick([BAR, BELL]), dec: rnd(0.2, 0.6), damp: rnd(0.3, 0.7), level: 0.42, fmC: 1.9, fmR: pick([1.41, 2.33, 3.14]), fmI: rnd(1.5, 3.5), click: 0.6, clickF: 5000, rev: rnd(0.2, 0.4), pan: rnd(-0.7, 0.7) }
+      : { f: rnd(170, 340), parts: PLATE, dec: rnd(0.22, 0.5), damp: rnd(0.25, 0.5), level: 0.46, fmC: 2.3, fmR: pick([1.41, 0.71, 2.76]), fmI: rnd(3, 6), click: 0.7, clickF: 3500, rev: rnd(0.2, 0.4), pan: rnd(-0.7, 0.7) };
     const VOW = [[700, 1200], [400, 2000], [300, 2400], [500, 900], [350, 750], [600, 1700]];
     Object.assign(tr, {
       swing: rnd(0.22, 0.36), kickSteps: [k1, k2], bassLine: line, bassCut: rnd(120, 220),
@@ -503,7 +539,11 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       name: pick(NAME_A) + ' ' + pick(NAME_B),
       padCut: rnd(500, 1100), revSend: rnd(0.4, 0.6), delaySend: rnd(0.25, 0.5), delaySteps: pick([3, 3, 6]), fb: rnd(0.35, 0.5),
       drive: rnd(1.2, 2.2), warble: rnd(0.5, 1.2),
-      kickTune: rnd(48, 56), kickDecay: rnd(0.18, 0.28), pump: rnd(0.05, 0.08), clap: false,
+      kickTune: kt, kickDecay: rnd(0.18, 0.28), pump: rnd(0.05, 0.08), clap: false,
+      mSnare: { f: rnd(360, 640), parts: pick([BAR, PLATE, BELL]), dec: rnd(0.14, 0.3), damp: rnd(0.35, 0.8), level: 0.62, fmC: 1.6, fmR: pick([1.41, 2.33, 3.14, 0.71]), fmI: rnd(2, 4.5), click: 0.8, clickF: 4500, rev: rnd(0.12, 0.28), pan: 0 },
+      mHat: { f: rnd(2400, 3800), parts: [1, 1.34, 1.72, 2.19], square: true, dec: rnd(0.028, 0.05), damp: 0.15, level: 0.2, fmC: 2.66, fmR: 1.47, fmI: 3, click: 0.35, clickF: 8000, hp: 6000, rev: 0.04, pan: rnd(-0.25, 0.25) },
+      mKick: { f: kt * rnd(3.8, 5), parts: [1, 2.76, 5.4], dec: rnd(0.05, 0.09), damp: 0.5, level: 0.3, fmC: 1, fmR: 2.33, fmI: rnd(1.5, 3), click: 0.7, clickF: 2500, rev: 0.03, pan: 0 },
+      mStray: [stray(), stray(), stray()], stray: rnd(0.02, 0.05),
       ping: rnd(0.05, 0.14), wind: rnd(0.02, 0.05), windF: rnd(900, 2600)
     });
     return tr;
