@@ -188,8 +188,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       lfo(rnd(0.3, 0.5), 0.0022, pw.delayTime); lfo(rnd(0.06, 0.11), 0.005, pw.delayTime); lfo(rnd(5.5, 7.5), 0.00005, pw.delayTime);
       this.padOut = g(1);
       /* the pad is held off the ground: its lowest octave is taken away, and a narrow bright band drifts slowly up and down through what is left */
-      const lift = ac.createBiquadFilter(); lift.type = 'highpass'; lift.frequency.value = 300; lift.Q.value = 0.7;
-      const band = ac.createBiquadFilter(); band.type = 'peaking'; band.frequency.value = 1000; band.Q.value = 3.2; band.gain.value = 8;
+      const lift = ac.createBiquadFilter(); lift.type = 'highpass'; lift.frequency.value = 420; lift.Q.value = 0.7;
+      const band = ac.createBiquadFilter(); band.type = 'peaking'; band.frequency.value = 1700; band.Q.value = 3.2; band.gain.value = 8;
       lfo(rnd(0.03, 0.07), 1100, band.detune); lfo(rnd(0.011, 0.02), 600, band.detune);
       this.padBus.connect(pw); pw.connect(lift); lift.connect(band); band.connect(this.padOut); this.padOut.connect(this.duck);
 
@@ -213,7 +213,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       this.revSend = g(0.3); this.revIn = g(1); this.revIn.connect(this.rev);
       { const o = g(0.55); this.rev.connect(o); o.connect(this.pre); }
       this.chordBus.connect(this.revSend); this.revSend.connect(this.revIn);
-      [[this.delay, 0.35], [this.padOut, 0.75], [this.pingBus, 0.9]].forEach(([n, v]) => { const s = g(v); n.connect(s); s.connect(this.revIn); });
+      [[this.delay, 0.35], [this.padOut, 0.95], [this.pingBus, 0.9]].forEach(([n, v]) => { const s = g(v); n.connect(s); s.connect(this.revIn); });
 
       this.windOut = g(1); this.windOut.connect(this.pre); this.windOut.connect(this.revIn);
     }
@@ -245,22 +245,25 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       const tr = this.track, g = this.g, bq = this.bq;
       this.voices = []; this.live = [];
       const notes = tr.voicing.map(n => ({ n, mel: false })).concat([{ n: tr.mel[0], mel: true }], tr.air.map(n => ({ n, mel: false, air: true })));
-      const lv = 0.2 * tr.padLevel / Math.sqrt(notes.length);
+      const lv = 0.36 * tr.padLevel / Math.sqrt(notes.length);
       /* every voice of the pad swells and fades on its own clock */
       for (const { n, mel, air } of notes) {
-        const k = air ? 3 : mel ? 1.5 : 1, a = air ? 0.45 : 1;
+        const k = air ? 3 : mel ? 1.5 : 1, a = air ? 0.7 : 1;
         const f = bq('lowpass', tr.padCut * k, 0.7), vg = g(lv * 0.5 * a);
         const per = rnd(18, 46), ts = t + rnd(0, per * 0.5);
         const lf = ac.createOscillator(), lg = g(lv * 0.5 * a); lf.frequency.value = 1 / per; lf.connect(lg); lg.connect(vg.gain); lf.start(ts);
         /* the pitch of every voice wanders on its own, a few cents sharp, a few flat, never where the others are */
         const wf = ac.createOscillator(), wg = g(air ? rnd(14, 26) : rnd(7, 15)); wf.frequency.value = rnd(0.03, 0.11); wf.connect(wg); wf.start(t);
         const oscs = [-1, 1].map(s => {
-          const o = ac.createOscillator(); o.type = air ? 'sine' : mel && s > 0 ? 'triangle' : 'sawtooth';
-          o.frequency.value = mtof(tr.base + n); o.detune.value = s * rnd(7, 16); wg.connect(o.detune); o.connect(f); o.start(t); return o;
+          const o = ac.createOscillator(); o.type = air || s > 0 ? 'sine' : 'triangle';   /* no saws: thin, cold tones */
+          o.frequency.value = mtof(tr.base + n + (air ? 0 : tr.lift)); o.detune.value = s * rnd(7, 16); wg.connect(o.detune); o.connect(f); o.start(t); return o;
         });
-        f.connect(vg); vg.connect(this.padBus);
-        this.voices.push({ n, mel, k, per, ts, f, oscs });
-        this.live.push(lf, wf, ...oscs);
+        /* rarefied: each voice passes through a second, slower swell, so most of the time it is not there at all and the chord is never whole */
+        const per2 = rnd(29, 71), vg2 = g(0.5), lf2 = ac.createOscillator(), lg2 = g(0.5);
+        lf2.frequency.value = 1 / per2; lf2.connect(lg2); lg2.connect(vg2.gain); lf2.start(t + rnd(0, per2 * 0.5));
+        f.connect(vg); vg.connect(vg2); vg2.connect(this.padBus);
+        this.voices.push({ n, mel, air, k, per, ts, f, oscs });
+        this.live.push(lf, lf2, wf, ...oscs);
       }
       /* the floor: a low sine that is always there, and that the pulse pushes */
       this.sub = ac.createOscillator(); this.sub2 = ac.createOscillator();
@@ -317,7 +320,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
         const mn = tr.mel[Math.floor(rb / tr.melBars) % tr.mel.length];
         if (mn !== this.mn) {
           this.mn = mn; const v = this.voices.find(q => q.mel);
-          if (v) { v.n = mn; v.oscs.forEach(o => o.frequency.setTargetAtTime(mtof(tr.base + mn), t, 0.35)); }
+          if (v) { v.n = mn; v.oscs.forEach(o => o.frequency.setTargetAtTime(mtof(tr.base + mn + tr.lift), t, 0.35)); }
         }
         const drift = Math.pow(2, 0.5 * Math.sin(tt / tr.p2) + 0.25 * Math.sin(tt / tr.p1 + 1));
         this.voices.forEach(v => v.f.frequency.setTargetAtTime(tr.padCut * v.k * drift, t, 1.5));
@@ -535,9 +538,9 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       /* no root anywhere in the pad: fifths, ninths, the minor third and the flat sixth rubbing against their neighbours, now and then a major seventh */
       voicing: pick([[7, 14, 15, 22], [7, 8, 14, 15], [2, 7, 15, 20], [3, 14, 19, 23], [10, 14, 15, 19], [7, 8, 15, 26], [2, 3, 10, 19]]),
       mel: pick([[14, 15], [20, 19], [14, 15, 14, 11], [26, 27], [23, 22], [20, 19, 15, 14]]), melBars: pick([8, 16, 16]),
-      air: pick([[31], [26], [27, 31], [32], [35]]),
+      air: pick([[31, 38], [26, 34], [27, 31], [32, 39], [35, 43], [31]]), lift: pick([0, 12, 12]),
       name: pick(NAME_A) + ' ' + pick(NAME_B),
-      padCut: rnd(500, 1100), revSend: rnd(0.4, 0.6), delaySend: rnd(0.25, 0.5), delaySteps: pick([3, 3, 6]), fb: rnd(0.35, 0.5),
+      padCut: rnd(900, 1900), revSend: rnd(0.4, 0.6), delaySend: rnd(0.25, 0.5), delaySteps: pick([3, 3, 6]), fb: rnd(0.35, 0.5),
       drive: rnd(1.2, 2.2), warble: rnd(0.5, 1.2),
       kickTune: kt, kickDecay: rnd(0.18, 0.28), pump: rnd(0.05, 0.08), clap: false,
       mSnare: { f: rnd(360, 640), parts: pick([BAR, PLATE, BELL]), dec: rnd(0.14, 0.3), damp: rnd(0.35, 0.8), level: 0.62, fmC: 1.6, fmR: pick([1.41, 2.33, 3.14, 0.71]), fmI: rnd(2, 4.5), click: 0.8, clickF: 4500, rev: rnd(0.12, 0.28), pan: 0 },
