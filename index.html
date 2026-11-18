@@ -71,7 +71,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     <p class="hint" id="hint">Always on air. Tides rise from still, cold ambient into 2-step and fall back. Everything is generated in real time. Everything is in sync worldwide, even when offline.</p>
   </div>
 
-  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v20</span></footer>
+  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v21</span></footer>
 </div>
 
 <script>
@@ -350,16 +350,16 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       const kx = ss(0.45, 0.65, x), bx = ss(0.5, 0.7, x), px = 1 - ss(0.4, 0.6, x), hx = ss(0.3, 0.5, x), nx = ss(0.4, 0.6, x), ax = 1 - ss(0.5, 0.9, x);
       if (low && px > 0.02 && s % 2 === 0) { const v = tr.subPat[b2 / 2]; if (v > 0) this.pulse(t, v * px, tr); }
       const tk = t + rnd(-0.003, 0.003);   /* the foot is steadier than the hands, but not a machine */
-      if (low && kx > 0.02 && tr.kickSteps[rb % 2].includes(s)) this.kick(tk, tr, kx * (s === 0 ? 1 : 0.85) * rnd(0.9, 1.03));
+      if (low && kx > 0.02 && tr.kickSteps[rb % 2].includes(s) && (s === 0 || chance(0.8))) this.kick(tk, tr, kx * (s === 0 ? 1 : 0.85) * rnd(0.9, 1.03));
       if (low && bx > 0.02) { const n = tr.bassLine[b2]; if (n) this.bass(tk, sd, tr, bx, n.iv, n.len); }
       if (low && nx > 0.02) {
         /* the snare is struck metal, and one time in ten it is early or late */
-        if (s === 4 || s === 12) {
+        if ((s === 4 || s === 12) && !chance(tr.thin)) {   /* and sometimes the backbeat is simply not played */
           const ts = t + tr.lag + (chance(0.1) ? rnd(-0.3, 0.42) * sd : 0); this.snare(ts, tr, nx);
           /* and now and then it does not stop: a rush of hits, faster than the grid, all on the same pitch */
           if (chance(tr.roll)) { const n = pick([3, 4, 6, 8]), gap = sd / pick([2, 3, 4]); for (let i = 1; i <= n; i++) this.metal(ts + i * gap, tr.mSnare, nx * rnd(0.5, 0.8), { dec: 0.55 }); }
         }
-        else if (tr.ghost.includes(s) && chance(0.5)) this.snare(t + tr.lag, tr, nx * rnd(0.2, 0.38));
+        else if (tr.ghost.includes(s) && chance(0.3)) this.snare(t + tr.lag, tr, nx * rnd(0.2, 0.38));
       }
       if (hx > 0.02 && !tr.hatsOff.has(Math.floor(rb / 8))) {
         if (s === tr.openAt && x > 0.55) this.metal(t, tr.mHat, hx, { dec: 5 });
@@ -512,8 +512,9 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     for (let i = pick([1, 2, 2, 3, 3, 4]); i > 0; i--) b1[weightedStep()] = rnd(0.6, 1);
     const b2 = b1.slice(); if (chance(0.6)) mutate(b2);
     const breaks = new Set(), hatsOff = new Set();
-    for (let k = 32; k < 240; k += 16) if (chance(0.28)) { const n = pick([4, 4, 8]); for (let i = 1; i <= n; i++) breaks.add(k - i); }
-    for (let k = 1; k < 30; k++) if (chance(0.18)) hatsOff.add(k);
+    for (let k = 32; k < 240; k += 16) if (chance(0.42)) { const n = pick([4, 4, 8]); for (let i = 1; i <= n; i++) breaks.add(k - i); }
+    for (let k = 24; k < 240; k += 16) if (chance(0.3)) { const n = pick([1, 2, 2]); for (let i = 1; i <= n; i++) breaks.add(k - i); }   /* and short holes in the middle of a phrase */
+    for (let k = 1; k < 30; k++) if (chance(0.35)) hatsOff.add(k);
     const long = chance(0.3), fifth = base >= 50 ? -5 : 7, pn = pick([8, 16, 16]);
     const prog = new Array(pn).fill(0); prog[pn - 1] = fifth; if (pn === 16 && chance(0.5)) prog[pn - 2] = fifth;
     const tr = {
@@ -534,10 +535,10 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       breaks, hatsOff
     };
     /* what makes it cold, and what makes it skip */
-    const k1 = pick([[0, 10], [0, 10], [0, 7, 10], [0, 10, 14], [0, 6, 10], [0, 11]]), k2 = chance(0.5) ? k1 : pick([[0, 10], [0, 3, 10], [0, 10, 13], [0, 7]]);
+    const k1 = pick([[0, 10], [0, 10], [0, 10], [0, 11], [0], [0, 7, 10], [0, 10, 14]]), k2 = chance(0.5) ? k1 : pick([[0, 10], [0], [0], [0, 7], [0, 10, 13]]);
     const line = new Array(32).fill(null);
     [k1, k2].forEach((ks, b) => ks.forEach((st, i) => { if (i === 0 || chance(0.8)) line[b * 16 + st] = { iv: i === 0 ? 0 : pick([0, 0, -2, 3, 7, -5]), len: i === 0 ? pick([2, 3, 4]) : pick([2, 3, 5]) }; }));
-    const mask = new Array(16).fill(0).map((_, i) => i % 4 === 2 ? rnd(0.8, 1) : i % 2 === 0 ? rnd(0.1, 0.45) : (chance(0.45) ? rnd(0.3, 0.8) : 0));
+    const mask = new Array(16).fill(0).map((_, i) => i % 4 === 2 ? rnd(0.5, 0.85) : i % 2 === 0 ? rnd(0.04, 0.22) : (chance(0.25) ? rnd(0.25, 0.6) : 0));
     const s1 = new Array(16).fill(0); for (let i = pick([1, 1, 2, 2, 3]); i > 0; i--) s1[weightedStep()] = rnd(0.6, 1);
     const s2 = s1.slice(); if (chance(0.6)) mutate(s2);
     const kt = rnd(48, 56), hf = rnd(2400, 3800), FR = [1.41, 2.33, 2.76, 3.14];
@@ -547,7 +548,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     const VOW = [[700, 1200], [400, 2000], [300, 2400], [500, 900], [350, 750], [600, 1700]];
     Object.assign(tr, {
       swing: rnd(0.22, 0.36), kickSteps: [k1, k2], bassLine: line, bassCut: rnd(120, 220),
-      ghost: pick([[7], [15], [9], [7, 15], [14], []]), snF: rnd(1700, 3400), snDec: rnd(0.08, 0.16), snTone: rnd(170, 240), snRev: rnd(0.2, 0.5),
+      ghost: pick([[7], [15], [9], [14], [], [], []]), snF: rnd(1700, 3400), snDec: rnd(0.08, 0.16), snTone: rnd(170, 240), snRev: rnd(0.2, 0.5),
       hatMask: mask, openAt: pick([6, 14, 14, -1]), hatLevel: rnd(0.05, 0.085), hatDecay: rnd(0.018, 0.035), hatTone: rnd(7500, 10500),
       stab: [s1, s2], vowels: [pick(VOW), pick(VOW)], chopDec: rnd(0.2, 0.55), chopBend: rnd(1, 3),
       /* no root anywhere in the pad: fifths, ninths, the minor third and the flat sixth rubbing against their neighbours, now and then a major seventh */
@@ -561,9 +562,9 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       mSnare: { loose: 0.006, uneven: 0.2, bands: [rnd(900, 1500), rnd(2100, 3200), rnd(4200, 6500)], q: rnd(8, 20), nDec: rnd(0.07, 0.13), hpN: 700, raw: 0.9, res: 3, fmF: rnd(180, 260), fmR: pick(FR), fmI: rnd(4, 9), fmDec: rnd(0.04, 0.08), fmLv: 0.9, level: 0.95, rev: rnd(0.06, 0.16), pan: 0 },
       mHat: { loose: 0.007, uneven: 0.25, bands: [rnd(6000, 8000), rnd(9000, 12000)], q: 6, nDec: rnd(0.012, 0.028), hpN: 6000, raw: 0.8, res: 2, sq: [hf, hf * 1.34, hf * 1.72, hf * 2.19], sqLv: 0.35, fmLv: 0, fmF: 0, level: 0.33, rev: 0.02, pan: rnd(-0.25, 0.25) },
       mKick: { loose: 0, uneven: 0.08, bands: [rnd(1500, 2600)], q: 5, nDec: 0.012, hpN: 1500, raw: 0.7, res: 1.5, fmF: kt * 2, fmR: 2.33, fmI: rnd(3, 6), fmDec: 0.03, fmLv: 0.8, level: 0.5, rev: 0.02, pan: 0 },
-      roll: rnd(0.04, 0.1), lag: rnd(0.003, 0.013),
-      mStray: [stray(), stray(), stray()], stray: rnd(0.02, 0.05),
-      ping: rnd(0.05, 0.14), wind: rnd(0.02, 0.05), windF: rnd(900, 2600)
+      roll: rnd(0.008, 0.025), thin: rnd(0.1, 0.3), lag: rnd(0.003, 0.013),
+      mStray: [stray(), stray(), stray()], stray: rnd(0.012, 0.03),
+      ping: rnd(0.03, 0.09), wind: rnd(0.02, 0.05), windF: rnd(900, 2600)
     });
     return tr;
   }
