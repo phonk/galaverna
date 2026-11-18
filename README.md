@@ -1,6 +1,6 @@
 # galaverna
 
-*between ambient and frozen 2-step*
+*frozen stillness*
 
 A radio with one programme, cold. It is always on air, and whoever tunes in, anywhere, hears the same bar of the same track at the same moment. There is no stream and no server: everything is generated in real time, in your browser. One HTML file, no samples, no dependencies, no install.
 

@@ -53,7 +53,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   <header>
     <div class="titleblock">
       <h1>galaverna</h1>
-      <span class="tag">between ambient and frozen 2-step</span>
+      <span class="tag">frozen stillness</span>
     </div>
     <div class="side">
       <span id="clock">00:00</span>
@@ -71,7 +71,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     <p class="hint" id="hint">Always on air. Tides rise from still, cold ambient into 2-step and fall back. Everything is generated in real time. Everything is in sync worldwide, even when offline.</p>
   </div>
 
-  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v18</span></footer>
+  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v19</span></footer>
 </div>
 
 <script>
@@ -635,7 +635,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     if (!('mediaSession' in navigator)) return;
     try {
       if (on) {
-        navigator.mediaSession.metadata = new MediaMetadata({ title: 'galaverna', artist: 'between ambient and frozen 2-step' });
+        navigator.mediaSession.metadata = new MediaMetadata({ title: 'galaverna', artist: 'frozen stillness' });
         navigator.mediaSession.setActionHandler('play', () => { if (!playing) start(); });
         navigator.mediaSession.setActionHandler('pause', () => { if (playing) stop(); });
         navigator.mediaSession.setActionHandler('stop', () => { if (playing) stop(); });
