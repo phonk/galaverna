@@ -71,7 +71,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     <p class="hint" id="hint">Always on air. Tides rise from still, cold ambient into 2-step and fall back. Everything is generated in real time. Everything is in sync worldwide, even when offline.</p>
   </div>
 
-  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v22</span></footer>
+  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v23</span></footer>
 </div>
 
 <script>
@@ -347,7 +347,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       if (s === 0) this.settle(bar, at, sd);
       const t = at + (s % 2 ? tr.swing * sd : 0);   /* the off sixteenths arrive late: that is the skip */
       const low = bar >= this.kickFrom && bar < this.kickUntil && !tr.breaks.has(rb);
-      const kx = ss(0.45, 0.65, x), bx = ss(0.5, 0.7, x), px = 1 - ss(0.4, 0.6, x), hx = ss(0.3, 0.5, x), nx = ss(0.4, 0.6, x), ax = 1 - ss(0.5, 0.9, x);
+      const kx = ss(0.28, 0.45, x), bx = ss(0.32, 0.5, x), px = 1 - ss(0.25, 0.42, x), hx = ss(0.15, 0.3, x), nx = ss(0.22, 0.4, x), ax = 1 - ss(0.5, 0.9, x);   /* the beat comes in early in the tide and leaves late: the stretches with no drums at all are short */
       if (low && px > 0.02 && s % 2 === 0) { const v = tr.subPat[b2 / 2]; if (v > 0) this.pulse(t, v * px, tr); }
       const tk = t + rnd(-0.003, 0.003);   /* the foot is steadier than the hands, but not a machine */
       if (low && kx > 0.02 && tr.kickSteps[rb % 2].includes(s) && (s === 0 || chance(0.9))) this.kick(tk, tr, kx * (s === 0 ? 1 : 0.85) * rnd(0.9, 1.03));
@@ -362,12 +362,12 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
         else if (tr.ghost.includes(s) && chance(0.3)) this.snare(t + tr.lag, tr, nx * rnd(0.2, 0.38));
       }
       if (hx > 0.02 && !tr.hatsOff.has(Math.floor(rb / 8))) {
-        if (s === tr.openAt && x > 0.55) this.metal(t, tr.mHat, hx, { dec: 5 });
+        if (s === tr.openAt && x > 0.4) this.metal(t, tr.mHat, hx, { dec: 5 });
         else if (chance(tr.hatMask[s] * (0.5 + 0.5 * hx))) this.metal(t, tr.mHat, hx * (s % 2 ? rnd(0.3, 0.6) : rnd(0.6, 1)), { pitch: s % 2 ? 0.965 : 1 });   /* two hands, the weaker one a little duller */
       }
       /* now and then something lands where no grid would put it: one stray hit, or a thing dropped that bounces to rest.
          at low tide it is far off in the room, at high tide it is in your face */
-      const sx = ss(0.18, 0.55, x);
+      const sx = ss(0.1, 0.45, x);
       if (sx > 0.02 && chance(tr.stray * (0.4 + 0.6 * sx))) {
         const m = pick(tr.mStray), t1 = at + (chance(0.5) ? rnd(0.14, 0.4) : rnd(0.6, 0.86)) * sd, far = lerp(3, 1, sx), lv = rnd(0.45, 1) * lerp(0.45, 1, sx);
         if (chance(0.3)) { let gap = rnd(0.55, 0.95) * sd, tt = t1, l = lv; for (let i = pick([3, 4, 5]); i > 0; i--) { this.metal(tt, m, l, { far }); tt += gap; gap *= rnd(0.55, 0.72); l *= 0.7; } }
@@ -569,7 +569,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     return tr;
   }
   /* slow music takes its time: tracks are longer at low tide */
-  function plan() { curT = pick([16, 16, 32]); curL = x < 0.4 ? pick([96, 128]) : pick([64, 96, 128]); }
+  function plan() { curT = pick([16, 16, 32]); curL = x < 0.25 ? pick([96, 128]) : pick([64, 96, 128]); }
   /* one tide is exactly half an hour: low at the start, high in the middle, low again at the end, where the next begins */
   const autoTide = el => clamp(0.56 - 0.52 * Math.cos(2 * Math.PI * el / TIDE) + 0.1 * Math.sin(2 * Math.PI * el / (TIDE / 3)), 0, 1);
   const say = (...a) => { if (window.__log) window.__log(K, step, ...a); };
@@ -836,7 +836,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
           vis = e; barMark = { t: clock, first: e.rel === 0 };
           const last = strata[strata.length - 1]; if (last && clock - lastDep < 0.05) mark(last);
           $('nowA').textContent = e.key;
-          $('nowB').textContent = 'track ' + e.track + ', bar ' + (e.rel + 1) + ' of ' + e.L + ' at ' + Math.round(e.x < 0.45 ? e.bpm / 2 : e.bpm) + ' bpm';
+          $('nowB').textContent = 'track ' + e.track + ', bar ' + (e.rel + 1) + ' of ' + e.L + ' at ' + Math.round(e.x < 0.3 ? e.bpm / 2 : e.bpm) + ' bpm';
         }
       }
       echoes = echoes.filter(e => { if (e.at > clock) return true; deposit(WINE, e.a, { comps: comps() }); return false; });
