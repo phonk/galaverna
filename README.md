@@ -14,7 +14,7 @@ Galaverna is the Italian word for hoarfrost: the ice that fog leaves on branches
 
 Tap the page to tune in, tap again to tune out. There is nothing else to set.
 
-Every half hour of the clock is one tide. At low tide the music is still: pads held off the ground, wind, glass, a slow pulse on the sub. As it rises the hats start to skip, then a snare on two and four, then a kick that never falls where a straight beat would put it, with a sub under it. Then it all falls back.
+Every half hour of the clock is one tide. At low tide the music is still: pads held off the ground, wind, glass, a slow pulse on the sub. As it rises the hats come in, then the snare, then a kick with a sub under it. Every track has its own two-bar rhythm: the usual skip, half time, a snare pushed early or late, three against the bar. The drums are struck metal, sparse, and played by hands. Then it all falls back.
 
 Top right is the station clock: the number of the tide on air and how far into it we are. It is the same on every screen.
 
