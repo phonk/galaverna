@@ -71,7 +71,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     <p class="hint" id="hint">Always on air. Tides rise from still, cold ambient into 2-step and fall back. Everything is generated in real time. Everything is in sync worldwide, even when offline.</p>
   </div>
 
-  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v27</span></footer>
+  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v28</span></footer>
 </div>
 
 <script>
@@ -134,7 +134,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   let ac = null, mix, master, bed, noiseBuf, crackleBuf, irBuf;
   let decks = [], cur = 0, curL = 96, curT = 16, trackNo = 0;
   let step = 0, nextTime = 0, baseBpm = 114, t0 = 0, bpmNow = 114;
-  const VER = 'v27';
+  const VER = 'v28', LITE = window.matchMedia('(pointer: coarse)').matches;
   let playing = false, worker = null, fallbackTimer = null, silentEl = null;
   /* the tide: 0 is onde, 1 is nebbia */
   let x = 0.04, dry = false;
@@ -589,8 +589,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       drive: rnd(1.2, 2.2), warble: rnd(0.5, 1.2),
       kickTune: kt, kickDecay: rnd(0.16, 0.24), pump: rnd(0.05, 0.08), clap: false,
       mSnare: { loose: 0.006, uneven: 0.2, bands: [rnd(900, 1500), rnd(2100, 3200), rnd(4200, 6500)], q: rnd(8, 20), nDec: rnd(0.07, 0.13), hpN: 700, raw: 0.9, res: 3, fmF: rnd(180, 260), fmR: pick(FR), fmI: rnd(4, 9), fmDec: rnd(0.04, 0.08), fmLv: 0.9, level: 0.95, rev: rnd(0.06, 0.16), pan: 0 },
-      mHat: { loose: 0.007, uneven: 0.25, bands: [rnd(6000, 8000), rnd(9000, 12000)], q: 6, nDec: rnd(0.012, 0.028), hpN: 6000, raw: 0.8, res: 2, sq: [hf, hf * 1.34, hf * 2.19], sqLv: 0.42, fmLv: 0, fmF: 0, level: 0.33, rev: 0.02, pan: rnd(-0.25, 0.25) },
-      mKick: { loose: 0, uneven: 0.08, bands: [rnd(1500, 2600)], q: 5, nDec: 0.012, hpN: 1500, raw: 0.7, res: 1.5, fmF: kt * 2, fmR: 2.33, fmI: rnd(3, 6), fmDec: 0.03, fmLv: 0.8, level: 0.5, rev: 0.02, pan: 0 },
+      mHat: { loose: 0.007, uneven: 0.25, bands: [], q: 6, nDec: rnd(0.012, 0.028), hpN: 6000, raw: 0.8, res: 2, sq: [hf, hf * 1.34, hf * 2.19], sqLv: 0.42, fmLv: 0, fmF: 0, level: 0.33, rev: 0.02, pan: rnd(-0.25, 0.25) },
+      mKick: { loose: 0, uneven: 0.08, bands: [], q: 5, nDec: 0.012, hpN: 1500, raw: 0.7, res: 1.5, fmF: kt * 2, fmR: 2.33, fmI: rnd(3, 6), fmDec: 0.03, fmLv: 0.8, level: 0.5, rev: 0.02, pan: 0 },
       padRest, thin: rnd(0.04, 0.15), lag: rnd(0.003, 0.013),
       mStray: [stray(), stray(), stray()], stray: rnd(0.016, 0.04),
       ping: rnd(0.04, 0.11), wind: rnd(0.02, 0.05), windF: rnd(900, 2600)
@@ -645,7 +645,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   }
   /* the page was held up and the written music ran out. what was missed is not played late in a heap: it is worked out silently,
      as when tuning in, and the decks carry on from now. a deck still on the same track keeps its voices */
-  let stalls = 0;
+  let stalls = 0, slow = 0, lastTick = 0;
   function catchUp(now) {
     const was = decks.map(d => ({ serial: d.serial, live: d.live.slice() }));
     dry = true; while (nextTime < now + 0.12 && nextTime - t0 < TIDE) advance(); dry = false;
@@ -662,8 +662,12 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     const now = ac.currentTime;
     if (now - t0 >= TIDE) { decks.forEach(d => d.retire(now)); events.length = 0; tuneIn(); }   /* the tide is over: the old decks die away and we tune in to the next */
     else if (nextTime < now - 0.2) catchUp(now);
-    /* with the screen off the phone wakes this page rarely, so there the music is written out several seconds ahead */
-    const ahead = document.hidden ? 5 : 0.4;
+    /* with the screen off the phone wakes this page rarely, and how rarely depends on the phone. so there the music is written out
+       well ahead: at least five seconds, and three times the longest sleep seen so far, up to twenty */
+    const wall = performance.now();
+    if (!document.hidden) slow = 0; else if (lastTick) slow = Math.max(slow * 0.97, (wall - lastTick) / 1000);
+    lastTick = wall;
+    const ahead = document.hidden ? clamp(2 + 3 * slow, 5, 20) : 0.4;
     while (nextTime < now + ahead && nextTime - t0 < TIDE) advance();
     if (events.length > 400) events.splice(0, events.length - 400);
   }
@@ -710,7 +714,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       silentEl.play().catch(() => {});
     } catch (e) {}
     media(true);
-    noiseBuf = makeNoise(2); crackleBuf = makeCrackle(5); irBuf = makeImpulse(6);
+    noiseBuf = makeNoise(2); crackleBuf = makeCrackle(5); irBuf = makeImpulse(LITE ? 4 : 6);   /* a shorter room on phones: the reverb is the heaviest thing here */
     master = ac.createGain(); master.gain.value = 0;
     const comp = ac.createDynamicsCompressor();
     comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.01; comp.release.value = 0.25;
