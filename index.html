@@ -71,7 +71,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     <p class="hint" id="hint">Always on air. Tides rise from still, cold ambient into 2-step and fall back. Everything is generated in real time. Everything is in sync worldwide, even when offline.</p>
   </div>
 
-  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v23</span></footer>
+  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v24</span></footer>
 </div>
 
 <script>
@@ -329,7 +329,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
         }
         const drift = Math.pow(2, 0.5 * Math.sin(tt / tr.p2) + 0.25 * Math.sin(tt / tr.p1 + 1));
         this.voices.forEach(v => v.f.frequency.setTargetAtTime(tr.padCut * v.k * drift, t, 1.5));
-        this.padOut.gain.setTargetAtTime(lerp(1, 0.48, ss(0.3, 0.9, x)), t, 2);
+        /* now and then the pad stops breathing for a few bars, and only its tail in the room is left */
+        const rest = tr.padRest.has(rb); this.padOut.gain.setTargetAtTime(rest ? 0 : lerp(1, 0.48, ss(0.3, 0.9, x)), t, rest ? 0.8 : 1.6);
         this.windOut.gain.setTargetAtTime(1 - 0.5 * ss(0.5, 0.9, x), t, 2);
         this.subBase = 0.1 * (1 - 0.85 * ss(0.4, 0.8, x)); this.subGain.gain.setTargetAtTime(this.subBase, t + 0.3, 1);
         this.subBus.gain.setTargetAtTime(0.5 * tr.subLevel, t, 1);
@@ -541,6 +542,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     const mask = new Array(16).fill(0).map((_, i) => i % 4 === 2 ? rnd(0.65, 0.95) : i % 2 === 0 ? rnd(0.07, 0.33) : (chance(0.35) ? rnd(0.28, 0.7) : 0));
     const s1 = new Array(16).fill(0); for (let i = pick([1, 1, 2, 2, 3]); i > 0; i--) s1[weightedStep()] = rnd(0.6, 1);
     const s2 = s1.slice(); if (chance(0.6)) mutate(s2);
+    const padRest = new Set();
+    for (let k = 6; k < 240; k += 8) if (chance(0.3)) { const n = pick([3, 4, 4, 6]), from = k + pick([0, 1, 2]); for (let i = 0; i < n; i++) padRest.add(from + i); }
     const kt = rnd(48, 56), hf = rnd(2400, 3800), FR = [1.41, 2.33, 2.76, 3.14];
     const stray = () => chance(0.5)
       ? { loose: 0.004, uneven: 0.2, bands: [rnd(500, 900), rnd(1300, 2400), rnd(3000, 5200)], q: rnd(18, 40), nDec: rnd(0.04, 0.1), hpN: 400, raw: 0.4, res: 5, fmF: rnd(300, 700), fmR: pick(FR), fmI: rnd(5, 10), fmDec: rnd(0.03, 0.07), fmLv: 0.8, level: 0.8, rev: rnd(0.12, 0.3), pan: rnd(-0.7, 0.7) }
@@ -562,7 +565,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       mSnare: { loose: 0.006, uneven: 0.2, bands: [rnd(900, 1500), rnd(2100, 3200), rnd(4200, 6500)], q: rnd(8, 20), nDec: rnd(0.07, 0.13), hpN: 700, raw: 0.9, res: 3, fmF: rnd(180, 260), fmR: pick(FR), fmI: rnd(4, 9), fmDec: rnd(0.04, 0.08), fmLv: 0.9, level: 0.95, rev: rnd(0.06, 0.16), pan: 0 },
       mHat: { loose: 0.007, uneven: 0.25, bands: [rnd(6000, 8000), rnd(9000, 12000)], q: 6, nDec: rnd(0.012, 0.028), hpN: 6000, raw: 0.8, res: 2, sq: [hf, hf * 1.34, hf * 1.72, hf * 2.19], sqLv: 0.35, fmLv: 0, fmF: 0, level: 0.33, rev: 0.02, pan: rnd(-0.25, 0.25) },
       mKick: { loose: 0, uneven: 0.08, bands: [rnd(1500, 2600)], q: 5, nDec: 0.012, hpN: 1500, raw: 0.7, res: 1.5, fmF: kt * 2, fmR: 2.33, fmI: rnd(3, 6), fmDec: 0.03, fmLv: 0.8, level: 0.5, rev: 0.02, pan: 0 },
-      roll: rnd(0.008, 0.025), thin: rnd(0.04, 0.15), lag: rnd(0.003, 0.013),
+      padRest, roll: rnd(0.008, 0.025), thin: rnd(0.04, 0.15), lag: rnd(0.003, 0.013),
       mStray: [stray(), stray(), stray()], stray: rnd(0.016, 0.04),
       ping: rnd(0.04, 0.11), wind: rnd(0.02, 0.05), windF: rnd(900, 2600)
     });
