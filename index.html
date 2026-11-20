@@ -71,7 +71,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     <p class="hint" id="hint">Always on air. Tides rise from still, cold ambient into 2-step and fall back. Everything is generated in real time. Everything is in sync worldwide, even when offline.</p>
   </div>
 
-  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v28</span></footer>
+  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v29</span></footer>
 </div>
 
 <script>
@@ -134,7 +134,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   let ac = null, mix, master, bed, noiseBuf, crackleBuf, irBuf;
   let decks = [], cur = 0, curL = 96, curT = 16, trackNo = 0;
   let step = 0, nextTime = 0, baseBpm = 114, t0 = 0, bpmNow = 114;
-  const VER = 'v28', LITE = window.matchMedia('(pointer: coarse)').matches;
+  const VER = 'v29', LITE = window.matchMedia('(pointer: coarse)').matches;
   let playing = false, worker = null, fallbackTimer = null, silentEl = null;
   /* the tide: 0 is onde, 1 is nebbia */
   let x = 0.04, dry = false;
@@ -645,7 +645,16 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   }
   /* the page was held up and the written music ran out. what was missed is not played late in a heap: it is worked out silently,
      as when tuning in, and the decks carry on from now. a deck still on the same track keeps its voices */
-  let stalls = 0, slow = 0, lastTick = 0;
+  let stalls = 0, slow = 0, lastTick = 0, held = 0, resyncs = 0, running = true, why = '', reloaded = false;
+  try { reloaded = sessionStorage.getItem('galaverna.on') === '1'; sessionStorage.removeItem('galaverna.on'); } catch (e) {}
+  /* what went wrong, if anything, written next to the version: how many times the page fell behind (late), how many times the phone
+     held the sound (held), how many times the music had to be put back on the clock (resync), whether the phone threw the page
+     away while it was playing (reloaded), and what stopped it if it was not a tap */
+  function note() {
+    $('ver').textContent = VER + (stalls ? ' · ' + stalls + ' late' : '') + (held ? ' · ' + held + ' held' : '') + (resyncs ? ' · ' + resyncs + ' resync' : '')
+      + (reloaded ? ' · reloaded' : '') + (why ? ' · stopped by ' + why : '');
+  }
+  const retune = now => { decks.forEach(d => d.retire(now)); events.length = 0; tuneIn(); };
   function catchUp(now) {
     const was = decks.map(d => ({ serial: d.serial, live: d.live.slice() }));
     dry = true; while (nextTime < now + 0.12 && nextTime - t0 < TIDE) advance(); dry = false;
@@ -655,12 +664,21 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       else { was[i].live.forEach(n => { try { n.stop(now + 0.05); } catch (e) {} }); if (d.track) d.sound(now); }
       d.settle(bar, now, sd);
     });
-    events.length = 0; stalls++; $('ver').textContent = VER + ' · ' + stalls;
+    events.length = 0; stalls++; note();
   }
   function tick() {
-    if (!playing || !ac || ac.state !== 'running') return;
+    if (!playing || !ac) return;
+    /* the phone can hold the sound without asking: a call, another app, its own mood. we do not give up: we keep asking for it back */
+    if (ac.state !== 'running') {
+      if (running) { running = false; held++; note(); }
+      ac.resume().catch(() => {}); if (silentEl && silentEl.paused) silentEl.play().catch(() => {});
+      return;
+    }
     const now = ac.currentTime;
-    if (now - t0 >= TIDE) { decks.forEach(d => d.retire(now)); events.length = 0; tuneIn(); }   /* the tide is over: the old decks die away and we tune in to the next */
+    /* while the sound was held its clock stood still and the world's did not: if the two have come apart, we tune in again */
+    const apart = Math.abs((Date.now() / 1000 - K * TIDE) - (now - t0)) > 1;
+    if (!running || apart) { if (apart) { resyncs++; note(); } running = true; retune(now); }
+    else if (now - t0 >= TIDE) retune(now);   /* the tide is over: the old decks die away and we tune in to the next */
     else if (nextTime < now - 0.2) catchUp(now);
     /* with the screen off the phone wakes this page rarely, and how rarely depends on the phone. so there the music is written out
        well ahead: at least five seconds, and three times the longest sleep seen so far, up to twenty */
@@ -689,8 +707,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       if (on) {
         navigator.mediaSession.metadata = new MediaMetadata({ title: 'galaverna', artist: 'frozen stillness' });
         navigator.mediaSession.setActionHandler('play', () => { if (!playing) start(); });
-        navigator.mediaSession.setActionHandler('pause', () => { if (playing) stop(); });
-        navigator.mediaSession.setActionHandler('stop', () => { if (playing) stop(); });
+        navigator.mediaSession.setActionHandler('pause', () => { if (playing) stop('the pause key'); });
+        navigator.mediaSession.setActionHandler('stop', () => { if (playing) stop('the stop key'); });
       }
       navigator.mediaSession.playbackState = on ? 'playing' : 'paused';
     } catch (e) {}
@@ -699,8 +717,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   async function onReturn() {
     if (document.hidden || !playing || !ac || ac.state === 'running') return;
     const c = ac;
-    if (await resumeSoon(c, 400) && c.state === 'running') return;
-    if (playing && ac === c) stop();
+    await resumeSoon(c, 400);   /* if the phone will not give the sound back yet, the clock keeps asking; a tap on the page asks too */
   }
   document.addEventListener('visibilitychange', onReturn);
   window.addEventListener('pageshow', onReturn); window.addEventListener('focus', onReturn);
@@ -709,7 +726,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
     ac.resume();
     try {
-      silentEl = silentEl || new Audio(silentWav());
+      if (!silentEl) { silentEl = new Audio(silentWav()); silentEl.addEventListener('pause', () => { if (playing) silentEl.play().catch(() => {}); }); }
       silentEl.loop = true; silentEl.setAttribute('playsinline', ''); silentEl.volume = 0.01;
       silentEl.play().catch(() => {});
     } catch (e) {}
@@ -741,7 +758,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     { const f = flt('highpass', 900), l = lvl(0.08); src(crackleBuf, 0).connect(f); f.connect(l); l.connect(bed); }
     { const f = flt('lowpass', 150), l = lvl(0.2); src(noiseBuf, 0.7).connect(f); f.connect(l); l.connect(bed); }
 
-    events.length = 0;
+    events.length = 0; running = true; why = ''; note();
+    try { sessionStorage.setItem('galaverna.on', '1'); } catch (e) {}
     tuneIn();
     playing = true;
     try {
@@ -754,8 +772,9 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     wallStart = performance.now();
     requestAnimationFrame(draw);
   }
-  function stop() {
-    playing = false;
+  function stop(reason) {
+    playing = false; why = typeof reason === 'string' ? reason : ''; note();
+    try { sessionStorage.removeItem('galaverna.on'); } catch (e) {}
     if (worker) { worker.postMessage('halt'); worker.terminate(); worker = null; }
     clearInterval(fallbackTimer);
     const old = ac; ac = null;
@@ -766,7 +785,9 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     ui(false);
   }
   const btn = $('toggle');
-  btn.addEventListener('click', () => (playing ? stop() : start()));
+  /* a tap tunes in and out. but if the phone is holding the sound, the tap is what gets it back */
+  btn.addEventListener('click', () => { if (playing && ac && ac.state !== 'running') ac.resume().catch(() => {}); else if (playing) stop(); else start(); });
+  note();
 
   /* ---------- the drawing: sediment. the page is a tide gauge seen from the side. the bright line is the water, and it
      stands where the tide is; its shape is the chord that is sounding, one ripple per voice. everything the music does
