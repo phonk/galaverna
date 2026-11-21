@@ -18,6 +18,10 @@ Every half hour of the clock is one tide. At low tide the music is still: pads h
 
 Top right is the station clock: the number of the tide on air and how far into it we are. It is the same on every screen.
 
+## Names
+
+Tracks are named after things from mathematics, and about half the names are instructions. *empty set* has no drums. *fixed point* holds one note. In *prime gap* everything falls on the prime sixteenths. The hats of *cantor dust* are a Cantor set. *period doubling* doubles. *random walk* is one note of glass going a step up or a step down. *heat kernel* diffuses: every hit a little longer and further away than the last. *dirac delta* is one enormous hit every four bars. *steady state* is a machine. The other names lose one thing, the kick or the hats or the snare, or are played in half time. Every track has a room and a colour of its own.
+
 ## How it stays the same for everyone
 
 It works like [etere](https://phonk.github.io/etere/). Every half hour of the world clock has a number, and that number is the seed of everything played in it. When you tune in, the page works out which tide the clock says we are in, replays it silently from its beginning up to this moment, and goes live from there. Two people listening are as close together as their clocks are.

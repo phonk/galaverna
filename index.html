@@ -71,7 +71,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     <p class="hint" id="hint">Always on air. Tides rise from still, cold ambient into 2-step and fall back. Everything is generated in real time. Everything is in sync worldwide, even when offline.</p>
   </div>
 
-  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v29</span></footer>
+  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v30</span></footer>
 </div>
 
 <script>
@@ -121,6 +121,47 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     'φ² = φ + 1', '0.999… = 1', 'lim 1/n = 0', '|x| < ε', '∀ε ∃δ', '∮ f dz = 0', '∫ e^−x² dx = √π', '∑ 1/n² = π²/6', 'z² + c',
     'V − E + F = 2', 'x ≡ 0 (mod p)', 'sin x / x', 'ℵ₀', '∅', 'ker f', 'x ∉ x', '1 − 1/3 + 1/5 − …', 'n! ~ √(2πn)(n/e)ⁿ'
   ];
+  /* a name is not a label: it says what the track does. each of these words belongs to a family, and each family has a rule that
+     can be heard. the names with no family get a plainer difference: something is taken away from them (the kick, the hats,
+     the snare) or they are played in half time. and every track, named or not, gets a room and a colour of its own */
+  const FAMILY = {
+    void: ['empty set', 'null set', 'measure zero', '∅'],                                   /* no drums at all: pad, wind and glass */
+    point: ['fixed point', 'limit point', 'accumulation point'],                            /* the pad holds one note, and never rests */
+    primes: ['prime gap', 'twin primes', 'x ≡ 0 (mod p)'],                                  /* everything falls on the prime sixteenths: 2, 3, 5, 7, 11, 13 */
+    cantor: ['cantor dust', 'hausdorff dimension'],                                         /* the hats are a Cantor set: 27 steps, middle thirds removed, sliding against the bar */
+    doubling: ['period doubling', 'bifurcation'],                                           /* the rhythm doubles: every other bar, then every bar, then the hats twice as fast */
+    walk: ['random walk', 'brownian motion', 'martingale'],                                 /* one note of glass, a step up or a step down each half bar */
+    heat: ['heat kernel', '∂u/∂t = α∇²u', 'laplacian', '∇²φ = 0', 'harmonic function'],     /* diffusion: every hit a little longer and further away than the last */
+    wave: ['standing wave', 'fourier series', 'sin x / x'],                                 /* the pad beats in place, loud and soft twice a bar */
+    delta: ['dirac delta', 'singularity', 'essential singularity', 'step function'],        /* one enormous hit every four bars, and nothing else */
+    dense: ['almost everywhere', 'open cover'],                                             /* hats on nearly every sixteenth, and no other drum */
+    steady: ['steady state', 'stationary distribution', 'dx/dt = 0', 'f′(x) = 0', 'trivial solution'],   /* a machine: nothing early, nothing late, nothing changes */
+    orbit: ['strange attractor', 'limit cycle', 'ergodic'],                                 /* the sound that turns on its own odd cycle leads, and the snare is gone */
+    sparse: ['nowhere dense', 'vanishing point', 'lim 1/n = 0'],                            /* a third of everything, and each hit quieter than the one before */
+    snow: ['koch snowflake', 'lattice', 'voronoi cell']                                     /* glass: many pings, a few hats, no kick and no snare */
+  };
+  const RULE_OF = {}; for (const k in FAMILY) for (const nm of FAMILY[k]) RULE_OF[nm] = k;
+  const PRIMES = [2, 3, 5, 7, 11, 13], CANTOR = new Set([0, 2, 6, 8, 18, 20, 24, 26]), MINOR = [0, 2, 3, 5, 7, 8, 10];
+  const RULES = {
+    void: tr => { Object.assign(tr.no, { kick: 1, bass: 1, snare: 1, rim: 1, hat: 1, stray: 1, pulse: 1 }); tr.cycle = null; tr.ping *= 1.6; },
+    point: tr => { tr.voicing = [7, 7, 19, 19]; tr.mel = [19]; tr.air = [31]; tr.padRest = new Set(); },
+    primes: tr => { tr.kickSteps = [[2, 11], [2, 13]]; tr.snSteps = [[5, 13], [7]]; tr.rim = [[3], [11]]; tr.hatMask = tr.hatMask.map((_, i) => PRIMES.includes(i) ? 0.7 : 0); tr.ghost = []; tr.cycle = null; tr.swing = 0.03; },
+    cantor: tr => { tr.hatSet = CANTOR; tr.hatLen = 27; tr.hatsOff = new Set(); tr.no.rim = 1; tr.cycle = null; },
+    doubling: tr => { tr.hatsOff = new Set(); tr.breaks = new Set(); },
+    walk: tr => { tr.no.ping = 1; tr.no.hat = 1; },
+    heat: tr => { tr.no.stray = 1; },
+    wave: tr => { tr.padRest = new Set(); },
+    delta: tr => { tr.kickSteps = [[0], []]; tr.kickEvery = 4; tr.clang = 1; Object.assign(tr.no, { snare: 1, rim: 1, hat: 1, stray: 1 }); tr.cycle = null; tr.breaks = new Set(); },
+    dense: tr => { tr.hatMask = tr.hatMask.map(() => rnd(0.82, 0.97)); tr.hatsOff = new Set(); tr.openAt = -1; Object.assign(tr.no, { kick: 1, bass: 1, snare: 1, rim: 1 }); tr.cycle = null; },
+    steady: tr => { tr.rigid = 1; tr.thin = 0; tr.lag = 0; tr.swing = 0; tr.breaks = new Set(); tr.hatsOff = new Set(); tr.padRest = new Set(); tr.no.stray = 1; tr.kickSteps = [tr.kickSteps[0], tr.kickSteps[0]]; tr.snSteps = [tr.snSteps[0], tr.snSteps[0]]; tr.hatMask = tr.hatMask.map(v => v > 0.5 ? 1 : 0); [tr.mSnare, tr.mHat, tr.mKick].forEach(m => { m.rigid = 1; m.loose = 0; m.uneven = 0; }); },
+    orbit: tr => { if (!tr.cycle) tr.cycle = { len: pick([5, 7, 7, 9, 11, 13]), at: pick([1, 2, 3]), m: tr.mStray[1] }; tr.cycleLv = 1.9; tr.cycleP = 1; tr.no.snare = 1; tr.no.rim = 1; },
+    sparse: tr => { tr.fade = 1; tr.thin = 0.6; tr.hatMask = tr.hatMask.map(v => v * 0.35); tr.stray *= 0.4; tr.ping *= 0.5; tr.kickSteps = [tr.kickSteps[0].slice(0, 1), []]; },
+    snow: tr => { Object.assign(tr.no, { kick: 1, bass: 1, snare: 1, rim: 1 }); tr.cycle = null; tr.ping = rnd(0.3, 0.45); tr.hatMask = tr.hatMask.map(v => v * 0.5); },
+    /* no family: take one thing away, or halve the time, or leave it whole */
+    '': tr => { const kit = pick(['whole', 'whole', 'nokick', 'nohat', 'nosnare', 'half']);
+      if (kit === 'nokick') tr.no.kick = 1; else if (kit === 'nohat') tr.no.hat = 1; else if (kit === 'nosnare') { tr.no.snare = 1; }
+      else if (kit === 'half') { tr.kickSteps = [[0], [0, 10]]; tr.snSteps = [[8], [8]]; tr.no.hat = 1; } }
+  };
   const MELS = [[14, 15], [14, 15, 14, 12], [10, 8], [19, 20, 19, 17], [14, 14, 15, 12]];
   const FLOOR = [[0, 0, -4, -4], [0, 0, 0, -4, 0, 0, -2, -2], [0, -4, -7, -2], [0, 0, -7, -7], [0, 0, 0, 0], [0, 0, -4, -2]];
   const BASS_PATTERNS = [[2, 6, 10, 14], [3, 6, 11, 14], [2, 7, 10], [6, 14], [2, 3, 10, 11], [3, 10], [2, 6, 11]];
@@ -134,7 +175,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   let ac = null, mix, master, bed, noiseBuf, crackleBuf, irBuf;
   let decks = [], cur = 0, curL = 96, curT = 16, trackNo = 0;
   let step = 0, nextTime = 0, baseBpm = 114, t0 = 0, bpmNow = 114;
-  const VER = 'v29', LITE = window.matchMedia('(pointer: coarse)').matches;
+  const VER = 'v30', LITE = window.matchMedia('(pointer: coarse)').matches;
   let playing = false, worker = null, fallbackTimer = null, silentEl = null;
   /* the tide: 0 is onde, 1 is nebbia */
   let x = 0.04, dry = false;
@@ -350,7 +391,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
         const drift = Math.pow(2, 0.5 * Math.sin(tt / tr.p2) + 0.25 * Math.sin(tt / tr.p1 + 1));
         this.voices.forEach(v => v.f.frequency.setTargetAtTime(tr.padCut * v.k * drift, t, 1.5));
         /* now and then the pad stops breathing for a few bars, and only its tail in the room is left */
-        const rest = tr.padRest.has(rb); this.padOut.gain.setTargetAtTime(rest ? 0 : lerp(1, 0.48, ss(0.3, 0.9, x)), t, rest ? 0.8 : 1.6);
+        const rest = tr.padRest.has(rb); this.padLv = rest ? 0 : lerp(1, 0.48, ss(0.3, 0.9, x)); if (tr.rule !== 'wave') this.padOut.gain.setTargetAtTime(this.padLv, t, rest ? 0.8 : 1.6);
         this.windOut.gain.setTargetAtTime(1 - 0.5 * ss(0.5, 0.9, x), t, 2);
         this.subBase = 0.1 * (1 - 0.85 * ss(0.4, 0.8, x)); this.subGain.gain.setTargetAtTime(this.subBase, t + 0.3, 1);
         this.subBus.gain.setTargetAtTime(0.5 * tr.subLevel, t, 1);
@@ -369,31 +410,46 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       const t = at + (s % 2 ? tr.swing * sd : 0);   /* the off sixteenths arrive late: that is the skip */
       const low = bar >= this.kickFrom && bar < this.kickUntil && !tr.breaks.has(rb);
       const kx = ss(0.28, 0.45, x), bx = ss(0.32, 0.5, x), px = 1 - ss(0.25, 0.42, x), hx = ss(0.15, 0.3, x), nx = ss(0.22, 0.4, x), ax = 1 - ss(0.5, 0.9, x);   /* the beat comes in early in the tide and leaves late: the stretches with no drums at all are short */
-      if (low && px > 0.02 && s % 2 === 0) { const v = tr.subPat[b2 / 2]; if (v > 0) this.pulse(t, v * px, tr); }
+      const R = tr.rule, n = rb * 16 + s, no = tr.no;
+      this.blur = R === 'heat' ? 1 + Math.min(rb, 96) / 20 : 1;                       /* diffusion: longer and further, bar after bar */
+      const fade = tr.fade ? 1 / (1 + rb / 24) : 1;                                   /* each hit quieter than the one before */
+      const mute = R === 'doubling' && rb < 32 && rb % 2 === 1, twice = R === 'doubling' && rb >= 64;   /* every other bar, every bar, twice as fast */
+      if (low && px > 0.02 && s % 2 === 0 && !no.pulse) { const v = tr.subPat[b2 / 2]; if (v > 0) this.pulse(t, v * px, tr); }
       const tk = t + rnd(-0.003, 0.003);   /* the foot is steadier than the hands, but not a machine */
-      if (low && kx > 0.02 && tr.kickSteps[rb % 2].includes(s) && (s === 0 || chance(0.9))) this.kick(tk, tr, kx * (s === 0 ? 1 : 0.85) * rnd(0.9, 1.03));
-      if (low && bx > 0.02) { const n = tr.bassLine[b2]; if (n) this.bass(tk, sd, tr, bx, n.iv, n.len); }
-      if (low && nx > 0.02) {
-        /* the snare is struck metal. where it falls is the track's own business; one time in ten it is early or late, and sometimes it is simply not played */
-        if (tr.snSteps[rb % 2].includes(s)) { if (!chance(tr.thin)) this.snare(t + tr.lag + (chance(0.1) ? rnd(-0.3, 0.42) * sd : 0), tr, nx); }
-        else if (tr.rim[rb % 2].includes(s)) { if (chance(0.7)) this.metal(t + tr.lag, tr.mStray[0], nx * rnd(0.3, 0.5)); }   /* a second, smaller piece of metal answers it */
-        else if (tr.ghost.includes(s) && chance(0.3)) this.snare(t + tr.lag, tr, nx * rnd(0.2, 0.38));
-        /* and in some tracks one more sound turns on a cycle of its own, five or seven or eleven sixteenths long, sliding against the bar */
-        if (tr.cycle && (rb * 16 + s) % tr.cycle.len === tr.cycle.at && chance(0.75)) this.metal(t, tr.cycle.m, nx * rnd(0.35, 0.55));
+      if (low && kx > 0.02 && !no.kick && !mute && rb % tr.kickEvery === 0 && tr.kickSteps[rb % 2].includes(s) && (s === 0 || tr.rigid || chance(0.9))) {
+        this.kick(tk, tr, kx * fade * (s === 0 ? 1 : 0.85) * (tr.rigid ? 1 : rnd(0.9, 1.03)));
+        if (tr.clang) this.metal(tk, tr.mStray[0], kx, { far: 3, dec: 2.6 });   /* the one hit: the kick and a sheet of steel together, left to ring */
       }
-      if (hx > 0.02 && !tr.hatsOff.has(Math.floor(rb / 8))) {
+      if (low && bx > 0.02 && !no.bass && !mute && rb % tr.kickEvery === 0) { const b = tr.bassLine[b2]; if (b) this.bass(tk, sd, tr, bx * fade, b.iv, b.len); }
+      if (low && nx > 0.02 && !mute) {
+        /* the snare is struck metal. where it falls is the track's own business; one time in ten it is early or late, and sometimes it is simply not played */
+        if (tr.snSteps[rb % 2].includes(s)) { if (!no.snare && !chance(tr.thin)) this.snare(t + tr.lag + (!tr.rigid && chance(0.1) ? rnd(-0.3, 0.42) * sd : 0), tr, nx * fade); }
+        else if (tr.rim[rb % 2].includes(s)) { if (!no.rim && chance(0.7)) this.metal(t + tr.lag, tr.mStray[0], nx * fade * rnd(0.3, 0.5)); }   /* a second, smaller piece of metal answers it */
+        else if (tr.ghost.includes(s) && !no.snare && !tr.rigid && chance(0.3)) this.snare(t + tr.lag, tr, nx * fade * rnd(0.2, 0.38));
+        /* and in some tracks one more sound turns on a cycle of its own, five or seven or eleven sixteenths long, sliding against the bar */
+        if (tr.cycle && n % tr.cycle.len === tr.cycle.at && chance(tr.cycleP)) this.metal(t, tr.cycle.m, nx * fade * tr.cycleLv * rnd(0.35, 0.55));
+      }
+      if (hx > 0.02 && !no.hat && !mute && !tr.hatsOff.has(Math.floor(rb / 8))) {
         if (s === tr.openAt && x > 0.4) this.metal(t, tr.mHat, hx, { dec: 5 });
-        else if (chance(tr.hatMask[s] * (0.5 + 0.5 * hx))) this.metal(t, tr.mHat, hx * (s % 2 ? rnd(0.3, 0.6) : rnd(0.6, 1)), { pitch: s % 2 ? 0.965 : 1 });   /* two hands, the weaker one a little duller */
+        else if (tr.hatSet ? tr.hatSet.has(n % tr.hatLen) : (tr.rigid ? tr.hatMask[s] > 0 : chance(tr.hatMask[s] * (0.5 + 0.5 * hx))) || (twice && s % 2 === 1)) this.metal(t, tr.mHat, hx * (s % 2 ? rnd(0.3, 0.6) : rnd(0.6, 1)), { pitch: s % 2 ? 0.965 : 1 });   /* two hands, the weaker one a little duller */
       }
       /* now and then something lands where no grid would put it: one stray hit, alone.
          at low tide it is far off in the room, at high tide it is in your face */
       const sx = ss(0.1, 0.45, x);
-      if (sx > 0.02 && chance(tr.stray * (0.4 + 0.6 * sx))) {
+      if (sx > 0.02 && !no.stray && chance(tr.stray * (0.4 + 0.6 * sx))) {
         const m = pick(tr.mStray), t1 = at + (chance(0.5) ? rnd(0.14, 0.4) : rnd(0.6, 0.86)) * sd;
         this.metal(t1, m, rnd(0.45, 1) * lerp(0.45, 1, sx), { far: lerp(3, 1, sx), pitch: pick([1, 1, 1, 1.5, 0.75]) });
         events.push({ t: t1, kind: 'ping', h: 0.5 });
       }
-      if (s % 4 === 0 && chance(tr.ping * (0.45 + 0.55 * ax))) this.ping(t, tr);
+      if (s % 4 === 0 && !no.ping && chance(tr.ping * (0.45 + 0.55 * ax))) this.ping(t, tr);
+      /* the walk: one note of glass that goes a step up or a step down the scale every half bar, and never jumps */
+      if (R === 'walk' && s % 8 === 0) {
+        let pos = 0; for (let i = 0, k = n / 8; i < k; i++) pos += mix32(mix32(K, this.serial), i) & 1 ? 1 : -1;
+        const span = 10, q = ((pos % (2 * span)) + 2 * span) % (2 * span), deg = q < span ? q : 2 * span - q;   /* it turns back at the ends */
+        this.ping(t, tr, tr.base + 24 + 12 * Math.floor(deg / 7) + MINOR[deg % 7]);
+      }
+      /* the standing wave: the pad loud on one beat and soft on the next, in place */
+      if (R === 'wave' && s % 4 === 0) this.padOut.gain.setTargetAtTime(this.padLv * ((s / 4) % 2 ? 0.25 : 1), t, 0.1);
       if (tr.tick && chance(tr.tick * 0.5)) this.tick(t);
     }
     /* a hit, not a note. a burst of noise, part of it raw and part forced through a few narrow resonances that are not in tune with
@@ -403,7 +459,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       /* played by hands: no two hits land at quite the same moment, with the same force, on the same spot of the metal */
       if (m.loose) t = Math.max(ac.currentTime, t + (rnd(-1, 1) + rnd(-1, 1)) * 0.5 * m.loose);
       lv *= rnd(1 - m.uneven, 1 + m.uneven * 0.3);
-      const p = (opt.pitch || 1) * rnd(0.975, 1.025), dk = (opt.dec || 1) * rnd(0.85, 1.18), out = ac.createGain(); out.gain.value = m.level * lv;
+      const blur = this.blur || 1, p = (opt.pitch || 1) * (m.rigid ? 1 : rnd(0.975, 1.025)), dk = (opt.dec || 1) * (m.rigid ? 1 : rnd(0.85, 1.18)) * blur, out = ac.createGain(); out.gain.value = m.level * lv;
       const nd = m.nDec * dk, src = ac.createBufferSource(), ng = ac.createGain(); src.buffer = noiseBuf;
       ng.gain.setValueAtTime(1, t); ng.gain.exponentialRampToValueAtTime(0.0005, t + nd);
       src.connect(ng); src.start(t, Math.random() * 1.5, nd + 0.03);
@@ -426,7 +482,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       let node = out;
       if (Math.abs(m.pan) >= 0.3 && ac.createStereoPanner) { const pn = ac.createStereoPanner(); pn.pan.value = m.pan; node.connect(pn); node = pn; }
       node.connect(this.front);
-      const wet = Math.min(1, m.rev * (opt.far || 1)); if (wet > 0.05) { const rv = ac.createGain(); rv.gain.value = wet; node.connect(rv); rv.connect(this.revIn); }
+      const wet = Math.min(1, Math.max(m.rev, blur > 1 ? 0.12 : 0) * (opt.far || 1) * (this.track ? this.track.far : 1) * blur); if (wet > 0.05) { const rv = ac.createGain(); rv.gain.value = wet; node.connect(rv); rv.connect(this.revIn); }
       say('metal', m.fmF | 0, lv);
     }
     snare(t, tr, lv) {
@@ -494,8 +550,8 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       f.connect(gn); gn.connect(this.drive);
       events.push({ t, kind: 'stab', vel, d: this.delay.delayTime.value, fb: this.fb.gain.value }); say('stab', vel, cut, shift);
     }
-    ping(t, tr) {
-      let m = tr.base + pick(tr.voicing.concat(tr.mel)) + pick([12, 24, 24, 36]); while (m > 96) m -= 12;
+    ping(t, tr, note) {
+      let m = note !== undefined ? note : tr.base + pick(tr.voicing.concat(tr.mel)) + pick([12, 24, 24, 36]); while (m > 96) m -= 12;
       const o = ac.createOscillator(), o2 = ac.createOscillator(), g2 = ac.createGain(), gn = ac.createGain(), dec = rnd(1.2, 2.6);
       o.type = 'sine'; o.frequency.value = mtof(m); o2.type = 'triangle'; o2.frequency.value = mtof(m) * 2.005; g2.gain.value = 0.15;
       gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(rnd(0.025, 0.05), t + 0.006); gn.gain.setTargetAtTime(0, t + 0.02, dec / 3);
@@ -563,7 +619,6 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     const rimAt = b => { if (!chance(0.45)) return []; const st = pick([3, 7, 9, 11, 14, 15, 6]); return taken(b).includes(st) ? [] : [st]; };
     const hs = pick(HATS).concat(chance(0.3) ? pick(HATS) : []);
     const line = new Array(32).fill(null);
-    [k1, k2].forEach((ks, b) => ks.forEach((st, i) => { if (i === 0 || chance(0.8)) line[b * 16 + st] = { iv: i === 0 ? 0 : pick([0, 0, -2, 3, 7, -5]), len: i === 0 ? pick([2, 3, 4]) : pick([2, 3, 5]) }; }));
     const mask = new Array(16).fill(0).map((_, i) => hs.includes(i) ? rnd(0.55, 0.95) : chance(0.1) ? rnd(0.1, 0.3) : 0);
     const s1 = new Array(16).fill(0); for (let i = pick([1, 1, 2, 2, 3]); i > 0; i--) s1[weightedStep()] = rnd(0.6, 1);
     const s2 = s1.slice(); if (chance(0.6)) mutate(s2);
@@ -584,7 +639,6 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       voicing: pick([[7, 14, 15, 22], [7, 8, 14, 15], [2, 7, 15, 20], [3, 14, 19, 23], [10, 14, 15, 19], [7, 8, 15, 26], [2, 3, 10, 19]]),
       mel: pick([[14, 15], [20, 19], [14, 15, 14, 11], [26, 27], [23, 22], [20, 19, 15, 14]]), melBars: pick([8, 16, 16]),
       air: pick([[31, 38], [26, 34], [27, 31], [32, 39], [35, 43], [31]]), lift: 0,
-      name: pick(NAMES),
       padCut: rnd(900, 1900), revSend: rnd(0.4, 0.6), delaySend: rnd(0.25, 0.5), delaySteps: pick([3, 3, 6]), fb: rnd(0.35, 0.5),
       drive: rnd(1.2, 2.2), warble: rnd(0.5, 1.2),
       kickTune: kt, kickDecay: rnd(0.16, 0.24), pump: rnd(0.05, 0.08), clap: false,
@@ -595,6 +649,17 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       mStray: [stray(), stray(), stray()], stray: rnd(0.016, 0.04),
       ping: rnd(0.04, 0.11), wind: rnd(0.02, 0.05), windF: rnd(900, 2600)
     });
+    tr.name = pick(NAMES); if (window.__name) tr.name = window.__name(tr.name); tr.rule = RULE_OF[tr.name] || ''; tr.no = {}; tr.kickEvery = 1; tr.cycleLv = 1; tr.cycleP = 0.75;
+    /* a room of its own: close and almost dry, the usual one, or vast. and a colour: the pad dark, plain or bright, sometimes an octave down */
+    const room = pick(['close', 'mid', 'mid', 'vast']), tone = pick(['dark', 'plain', 'plain', 'bright']);
+    if (room === 'close') Object.assign(tr, { revSend: rnd(0.14, 0.24), delaySend: rnd(0.08, 0.16), far: 0.3 });
+    else if (room === 'vast') Object.assign(tr, { revSend: rnd(0.75, 0.9), delaySend: rnd(0.45, 0.6), fb: rnd(0.5, 0.56), far: 2.6 });
+    else tr.far = 1;
+    if (tone === 'dark') { tr.padCut = rnd(420, 700); tr.lift = chance(0.5) ? -12 : 0; tr.air = tr.air.slice(0, 1); }
+    else if (tone === 'bright') tr.padCut = rnd(2000, 3200);
+    RULES[tr.rule](tr);
+    /* the sub goes where the kick goes */
+    tr.kickSteps.forEach((ks, b) => ks.forEach((st, i) => { if (i === 0 || chance(0.8)) tr.bassLine[b * 16 + st] = { iv: i === 0 ? 0 : pick([0, 0, -2, 3, 7, -5]), len: i === 0 ? pick([2, 3, 4]) : pick([2, 3, 5]) }; }));
     return tr;
   }
   /* slow music takes its time: tracks are longer at low tide */
