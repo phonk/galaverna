@@ -71,7 +71,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     <p class="hint" id="hint">Always on air. Tides rise from still, cold ambient into 2-step and fall back. Everything is generated in real time. Everything is in sync worldwide, even when offline.</p>
   </div>
 
-  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v30</span></footer>
+  <footer class="foot"><a href="https://github.com/phonk/galaverna">source on github</a><span aria-hidden="true">·</span><a href="https://phonk.github.io/" target="_blank" rel="noopener">phonk</a><span aria-hidden="true">·</span><a href="https://alessandrobonino.com/" target="_blank" rel="noopener">alessandro bonino</a><span aria-hidden="true">·</span><span id="ver">v31</span></footer>
 </div>
 
 <script>
@@ -175,7 +175,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
   let ac = null, mix, master, bed, noiseBuf, crackleBuf, irBuf;
   let decks = [], cur = 0, curL = 96, curT = 16, trackNo = 0;
   let step = 0, nextTime = 0, baseBpm = 114, t0 = 0, bpmNow = 114;
-  const VER = 'v30', LITE = window.matchMedia('(pointer: coarse)').matches;
+  const VER = 'v31', LITE = window.matchMedia('(pointer: coarse)').matches;
   let playing = false, worker = null, fallbackTimer = null, silentEl = null;
   /* the tide: 0 is onde, 1 is nebbia */
   let x = 0.04, dry = false;
@@ -192,9 +192,9 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     for (let i = 0; i < d.length; i++) d[i] = Math.random() < 0.0005 ? (Math.random() * 2 - 1) : 0;
     return b;
   }
-  function makeImpulse(seconds) {
-    const sr = ac.sampleRate, n = Math.floor(sr * seconds), b = ac.createBuffer(2, n, sr);
-    for (let c = 0; c < 2; c++) {
+  function makeImpulse(seconds, chans) {
+    const sr = ac.sampleRate, n = Math.floor(sr * seconds), b = ac.createBuffer(chans, n, sr);
+    for (let c = 0; c < chans; c++) {
       const d = b.getChannelData(c); let y = 0;
       for (let i = Math.floor(sr * 0.018); i < n; i++) {
         const t = i / sr, v = (Math.random() * 2 - 1) * Math.exp(-t * 0.9);
@@ -227,14 +227,14 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       this.duck = g(1); this.duck.connect(this.pre);
       this.drum = g(1); this.drum.connect(this.pre);
       /* the drums are driven hard into a clipper of their own: that is what makes them loud, short and ugly, and puts them in front */
-      this.front = g(3.2); const crush = ac.createWaveShaper(); crush.curve = tanhCurve(4.5, 0.62); crush.oversample = '2x';
+      this.front = g(3.2); const crush = ac.createWaveShaper(); crush.curve = tanhCurve(4.5, 0.62); crush.oversample = LITE ? 'none' : '2x';
       this.front.connect(crush); crush.connect(this.pre);
       this.subBus = g(0.5); this.subBus.connect(this.pre);
 
       /* stabs: overdrive, tape warble, phaser */
       this.chordBus = g(1); this.chordBus.connect(this.duck);
       this.drive = g(2); this.dirt = ac.createWaveShaper();
-      { const dc = new Float32Array(1025); for (let k = 0; k < 1025; k++) { const v = (k / 512 - 1) * 3; dc[k] = Math.tanh(v + 0.18 * v * v); } this.dirt.curve = dc; this.dirt.oversample = '2x'; }
+      { const dc = new Float32Array(1025); for (let k = 0; k < 1025; k++) { const v = (k / 512 - 1) * 3; dc[k] = Math.tanh(v + 0.18 * v * v); } this.dirt.curve = dc; this.dirt.oversample = LITE ? 'none' : '2x'; }
       const dirtOut = g(0.34), hp = bq('highpass', 35, 0.5);
       this.warb = ac.createDelay(0.2); this.warb.delayTime.value = 0.03;
       this.warbDepth = g(1); this.warbDepth.connect(this.warb.delayTime);
@@ -310,7 +310,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     startVoices(t) {
       const tr = this.track, g = this.g, bq = this.bq;
       this.voices = []; this.live = [];
-      const notes = tr.voicing.map(n => ({ n, mel: false })).concat([{ n: tr.mel[0], mel: true }], tr.air.map(n => ({ n, mel: false, air: true })));
+      const notes = tr.voicing.map(n => ({ n, mel: false })).concat([{ n: tr.mel[0], mel: true }], (LITE ? tr.air.slice(0, 1) : tr.air).map(n => ({ n, mel: false, air: true })));   /* one glass voice less on phones */
       const lv = 0.36 * tr.padLevel / Math.sqrt(notes.length);
       /* every voice of the pad swells and fades on its own clock */
       for (const { n, mel, air } of notes) {
@@ -746,11 +746,11 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     else if (now - t0 >= TIDE) retune(now);   /* the tide is over: the old decks die away and we tune in to the next */
     else if (nextTime < now - 0.2) catchUp(now);
     /* with the screen off the phone wakes this page rarely, and how rarely depends on the phone. so there the music is written out
-       well ahead: at least five seconds, and three times the longest sleep seen so far, up to twenty */
+       well ahead: at least five seconds, and three times the longest sleep seen so far, up to ten */
     const wall = performance.now();
     if (!document.hidden) slow = 0; else if (lastTick) slow = Math.max(slow * 0.97, (wall - lastTick) / 1000);
     lastTick = wall;
-    const ahead = document.hidden ? clamp(2 + 3 * slow, 5, 20) : 0.4;
+    const ahead = document.hidden ? clamp(2 + 3 * slow, 5, 10) : 0.4;
     while (nextTime < now + ahead && nextTime - t0 < TIDE) advance();
     if (events.length > 400) events.splice(0, events.length - 400);
   }
@@ -796,7 +796,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
       silentEl.play().catch(() => {});
     } catch (e) {}
     media(true);
-    noiseBuf = makeNoise(2); crackleBuf = makeCrackle(5); irBuf = makeImpulse(LITE ? 4 : 6);   /* a shorter room on phones: the reverb is the heaviest thing here */
+    noiseBuf = makeNoise(2); crackleBuf = makeCrackle(5); irBuf = makeImpulse(LITE ? 3 : 6, LITE ? 1 : 2);   /* on phones the room is shorter and has one channel: the reverb is the heaviest thing here, and a phone that finds the page too heavy throws it away */
     master = ac.createGain(); master.gain.value = 0;
     const comp = ac.createDynamicsCompressor();
     comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.01; comp.release.value = 0.25;
@@ -806,7 +806,7 @@ h1{font-weight:300;font-size:1.5rem;letter-spacing:-.01em;margin:0}
     [[0.45, 0.0009], [0.11, 0.002], [7.3, 0.00005]].forEach(([f, d]) => {
       const o = ac.createOscillator(), og = ac.createGain(); o.frequency.value = f; og.gain.value = d; o.connect(og); og.connect(td.delayTime); o.start();
     });
-    const ts = ac.createWaveShaper(); ts.curve = tanhCurve(1.05, 0.8); ts.oversample = '2x';
+    const ts = ac.createWaveShaper(); ts.curve = tanhCurve(1.05, 0.8); ts.oversample = LITE ? 'none' : '2x';
     const tl = ac.createBiquadFilter(); tl.type = 'lowpass'; tl.frequency.value = 9000; tl.Q.value = -3;
     const tb = ac.createBiquadFilter(); tb.type = 'peaking'; tb.frequency.value = 90; tb.Q.value = 0.9; tb.gain.value = 2.5;
     const th = ac.createBiquadFilter(); th.type = 'highpass'; th.frequency.value = 24; th.Q.value = 0.5;
